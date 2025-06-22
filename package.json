@@ -1,7 +1,7 @@
 {
-  "name": "spanish-language-learning-app",
+  "name": "k-language-learning-app",
   "version": "1.0.0",
-  "description": "Modern Spanish language learning app with Google Translate and Text-to-Speech",
+  "description": "AI-powered language learning app with on-device LLM, audio pronunciation, quizzes, and sentence practice features",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -11,7 +11,8 @@
     "type-check": "tsc --noEmit",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
-    "db:studio": "drizzle-kit studio"
+    "db:studio": "drizzle-kit studio",
+    "download-model": "node scripts/download-model.js"
   },
   "dependencies": {
     "@google-cloud/text-to-speech": "6.0.0",
@@ -24,6 +25,7 @@
     "lucide-react": "^0.522.0",
     "nanoid": "5.0.6",
     "next": "15.0.0",
+    "node-llama-cpp": "^3.10.0",
     "react": "18.3.1",
     "react-dom": "18.3.1",
     "react-icons": "^5.5.0"

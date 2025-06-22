@@ -377,4 +377,225 @@ For issues or questions:
 
 ---
 
+# K Language Learning App
+
+A modern, AI-powered language learning application built with Next.js, featuring on-device LLM integration, audio pronunciation, interactive quizzes, and sentence practice.
+
+## 🌟 Features
+
+### 🤖 AI-Powered Learning
+- **On-device LLM Integration**: Uses Google's Gemma-3-1b model for natural language processing
+- **Natural Language Commands**: Generate quizzes using natural language like "create a quiz using sentences that contain 'i love'"
+- **Smart Quiz Generation**: AI automatically creates questions and answers based on your commands
+- **Context-Aware Responses**: The AI understands difficulty levels, topics, and question counts
+
+### 🎯 Interactive Learning
+- **Sentence Practice**: Add and practice Spanish sentences with audio pronunciation
+- **Word Scramble Quizzes**: Interactive word arrangement exercises
+- **Multi-Sentence Quizzes**: Practice with multiple sentences at once
+- **Progress Tracking**: Monitor your learning progress over time
+
+### 🔊 Audio Features
+- **Text-to-Speech**: Google Cloud TTS integration for authentic pronunciation
+- **Audio Caching**: Efficient audio file management and caching
+- **Playback Controls**: Easy audio playback for learning
+
+### 🗄️ Data Management
+- **SQLite Database**: Local data storage with Drizzle ORM
+- **Translation Caching**: Efficient translation storage
+- **Audio Caching**: Optimized audio file management
+
+## 🚀 Getting Started
+
+### Prerequisites
+- Node.js 18+ 
+- npm or yarn
+- Google Cloud credentials (for translation and TTS)
+
+### Installation
+
+1. **Clone the repository**
+   ```bash
+   git clone https://github.com/kevinkicho/k-language-learning-app.git
+   cd k-language-learning-app
+   ```
+
+2. **Install dependencies**
+   ```bash
+   npm install
+   ```
+
+3. **Set up environment variables**
+   Create a `.env.local` file:
+   ```env
+   GOOGLE_APPLICATION_CREDENTIALS=path/to/your/service-account-key.json
+   ```
+
+4. **Download the AI model** (Optional but recommended)
+   ```bash
+   npm run download-model
+   ```
+   This downloads the Gemma-3-1b model (~2GB) for on-device AI features.
+
+5. **Set up the database**
+   ```bash
+   npm run db:generate
+   npm run db:migrate
+   ```
+
+6. **Start the development server**
+   ```bash
+   npm run dev
+   ```
+
+## 🤖 AI Features Guide
+
+### Natural Language Commands
+
+The AI understands various natural language commands for quiz generation:
+
+#### Basic Commands
+- `"create a quiz using sentences that contain 'i love'"`
+- `"generate 5 beginner questions about food"`
+- `"make an intermediate quiz about travel"`
+
+#### Advanced Commands
+- `"create 10 advanced sentences about work"`
+- `"generate a quiz about family members with 8 questions"`
+- `"make a beginner quiz about greetings and introductions"`
+
+#### Command Parameters
+- **Difficulty**: `beginner`, `intermediate`, `advanced`
+- **Topics**: Use quotes for specific topics like `"food"`, `"travel"`, `"family"`
+- **Count**: Specify number of questions/sentences like `5 questions`, `10 sentences`
+
+### AI Model Setup
+
+The app uses Google's Gemma-3-1b model for on-device AI processing:
+
+1. **Automatic Download**: Run `npm run download-model` to automatically download the model
+2. **Manual Download**: If automatic download fails, manually download from [Hugging Face](https://huggingface.co/TheBloke/gemma-3-1b-it-qat-q4_0-GGUF)
+3. **Model Location**: Place the model file in the `models/` directory
+
+### AI Configuration
+
+You can customize the AI behavior in `lib/ai-service.ts`:
+
+```typescript
+export const defaultLLMConfig: LLMConfig = {
+  modelPath: './models/gemma-3-1b-it-qat-q4_0.gguf',
+  contextSize: 4096,
+  threads: 4,
+  temperature: 0.7,
+  topP: 0.9,
+  topK: 40
+};
+```
+
+## 📁 Project Structure
+
+```
+k-language-learning-app/
+├── app/                    # Next.js app directory
+│   ├── api/               # API routes
+│   │   ├── ai/            # AI-related endpoints
+│   │   ├── audio/         # Audio processing
+│   │   ├── quiz/          # Quiz endpoints
+│   │   └── sentences/     # Sentence management
+│   ├── drizzle/           # Database schema and migrations
+│   └── page.tsx           # Main application page
+├── components/            # React components
+│   ├── ui/               # Reusable UI components
+│   ├── quiz/             # Quiz-related components
+│   └── AICommandInterface.tsx  # AI command interface
+├── lib/                   # Utility libraries
+│   ├── ai-service.ts      # AI service implementation
+│   ├── cache-utils.ts     # Caching utilities
+│   ├── database-drizzle.ts # Database connection
+│   ├── google-services.ts # Google Cloud services
+│   └── types.ts           # TypeScript type definitions
+├── models/                # AI model storage
+├── public/                # Static assets
+└── scripts/               # Utility scripts
+    └── download-model.js  # Model download script
+```
+
+## 🔧 Development
+
+### Available Scripts
+
+- `npm run dev` - Start development server
+- `npm run build` - Build for production
+- `npm run start` - Start production server
+- `npm run lint` - Run ESLint
+- `npm run type-check` - Run TypeScript type checking
+- `npm run db:generate` - Generate database migrations
+- `npm run db:migrate` - Run database migrations
+- `npm run db:studio` - Open Drizzle Studio
+- `npm run download-model` - Download AI model
+
+### Database Management
+
+The app uses SQLite with Drizzle ORM:
+
+```bash
+# Generate new migration
+npm run db:generate
+
+# Apply migrations
+npm run db:migrate
+
+# Open database studio
+npm run db:studio
+```
+
+## 🎯 Usage Examples
+
+### Creating AI-Generated Quizzes
+
+1. **Open the AI Command Interface** at the top of the main page
+2. **Type a natural language command** like:
+   - `"create a quiz about food"`
+   - `"generate 5 beginner questions about travel"`
+   - `"make an intermediate quiz using sentences with 'love'"`
+3. **Click Generate** to create the quiz
+4. **Review and start** the generated quiz
+
+### Managing Sentences
+
+1. **Add sentences** using the input form
+2. **Select sentences** for custom quizzes
+3. **Use quick actions** for random or selected quizzes
+4. **Delete sentences** as needed
+
+### Audio Features
+
+1. **Automatic audio generation** when adding sentences
+2. **Click play button** to hear pronunciation
+3. **Audio caching** for faster playback
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Add tests if applicable
+5. Submit a pull request
+
+## 📄 License
+
+This project is licensed under the MIT License.
+
+## 🙏 Acknowledgments
+
+- Google Cloud for translation and TTS services
+- Google for the Gemma language model
+- Next.js team for the excellent framework
+- Drizzle team for the ORM
+- The open-source community for various dependencies
+
+---
+
+**Note**: The AI features require downloading the Gemma model (~2GB). The app works without the model but with limited AI functionality.
+
  

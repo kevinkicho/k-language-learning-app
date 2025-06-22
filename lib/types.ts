@@ -111,4 +111,51 @@ export type Language = 'en' | 'es' | 'es-ES';
 export interface Word {
   word: string;
   originalIndex: number;
+}
+
+// LLM Types
+export interface LLMConfig {
+  modelPath: string;
+  contextSize: number;
+  threads: number;
+  temperature: number;
+  topP: number;
+  topK: number;
+}
+
+export interface QuizGenerationRequest {
+  command: string;
+  difficulty?: 'beginner' | 'intermediate' | 'advanced';
+  topic?: string;
+  sentenceCount?: number;
+}
+
+export interface QuizGenerationResponse {
+  success: boolean;
+  quiz?: {
+    id: string;
+    title: string;
+    sentences: Array<{
+      id: string;
+      spanish: string;
+      english: string;
+      difficulty: string;
+      topic?: string;
+    }>;
+    questions: Array<{
+      id: string;
+      question: string;
+      correctAnswer: string;
+      options: string[];
+      type: 'multiple-choice' | 'fill-blank' | 'translation';
+    }>;
+  };
+  error?: string;
+}
+
+export interface AICommand {
+  type: 'generate_quiz' | 'create_sentences' | 'explain_grammar' | 'translate';
+  parameters: Record<string, any>;
+  response: string;
+  timestamp: Date;
 } 

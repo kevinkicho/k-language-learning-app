@@ -1,12 +1,13 @@
 'use client';
 
 import { useState, useTransition, useEffect } from 'react';
-import { Sentence } from '@/lib/types';
+import { Sentence, QuizGenerationResponse } from '@/lib/types';
 import { CachedAPI } from '@/lib/cache-utils';
 import SentenceInput from '@/components/SentenceInput';
 import SentenceList from '@/components/SentenceList';
 import QuizModal from '@/components/QuizModal';
 import MultiQuizModal from '@/components/MultiQuizModal';
+import { AICommandInterface } from '@/components/AICommandInterface';
 
 export default function HomePage() {
   const [sentences, setSentences] = useState<Sentence[]>([]);
@@ -15,6 +16,7 @@ export default function HomePage() {
   const [isMultiQuizVisible, setMultiQuizVisible] = useState(false);
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [aiError, setAiError] = useState<string | null>(null);
 
   useEffect(() => {
     startTransition(async () => {
@@ -62,11 +64,53 @@ export default function HomePage() {
     setSelectedSentences([]);
   };
 
+  const handleAIQuizGenerated = (quiz: QuizGenerationResponse['quiz']) => {
+    if (quiz) {
+      // Convert AI-generated quiz to sentences and add them to the list
+      const newSentences: Sentence[] = quiz.sentences.map(s => ({
+        id: s.id,
+        englishSentence: s.english,
+        spanishTranslation: s.spanish,
+        audioPath: null,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      }));
+
+      setSentences(prev => [...newSentences, ...prev]);
+      setSelectedSentences(newSentences);
+      setMultiQuizVisible(true);
+      setAiError(null);
+    }
+  };
+
+  const handleAIError = (error: string) => {
+    setAiError(error);
+  };
+
   return (
     <div className="container py-4">
       <header className="text-center mb-4">
         <h1>LingoQuiz</h1>
+        <p className="text-muted">AI-Powered Language Learning</p>
       </header>
+      
+      {/* AI Command Interface */}
+      <AICommandInterface 
+        onQuizGenerated={handleAIQuizGenerated}
+        onError={handleAIError}
+      />
+
+      {aiError && (
+        <div className="alert alert-danger mb-4" role="alert">
+          <strong>AI Error:</strong> {aiError}
+          <button 
+            type="button" 
+            className="btn-close float-end" 
+            onClick={() => setAiError(null)}
+            aria-label="Close"
+          ></button>
+        </div>
+      )}
       
       <div className="row">
         <div className="col-md-4">
