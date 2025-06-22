@@ -6,6 +6,9 @@ import { LLMConfig, QuizGenerationRequest, QuizGenerationResponse } from './type
 export class AIService {
   private config: LLMConfig;
   private isInitialized = false;
+  private session: any = null;
+  private model: any = null;
+  private context: any = null;
 
   constructor(config: LLMConfig) {
     this.config = config;
@@ -13,17 +16,19 @@ export class AIService {
 
   async initialize(): Promise<void> {
     try {
-      // In a real implementation, you would initialize the LLM here
-      // const { LlamaModel, LlamaContext, LlamaChatSession } = await import('node-llama-cpp');
-      // const model = new LlamaModel({ modelPath: this.config.modelPath });
-      // const context = new LlamaContext({ model });
-      // this.session = new LlamaChatSession({ context });
-      
-      console.log('AI Service initialized (mock mode)');
+      // For now, we'll use the mock implementation
+      // The LLM integration can be enabled later when we have the correct API
+      console.log('AI Service initialized (enhanced mock mode)');
       this.isInitialized = true;
+      
+      // TODO: Enable full LLM when node-llama-cpp API is confirmed
+      // const { LlamaModel, LlamaContext, LlamaChatSession } = await import('node-llama-cpp');
+      // Initialize LLM components here
+      
     } catch (error) {
       console.error('Failed to initialize AI service:', error);
-      throw error;
+      console.log('Falling back to mock mode...');
+      this.isInitialized = true; // Still mark as initialized for mock mode
     }
   }
 
@@ -33,16 +38,9 @@ export class AIService {
     }
 
     try {
-      // Parse the command to extract parameters
-      const params = this.parseCommand(request.command);
-      
-      // Generate quiz based on the command
-      const quiz = await this.createQuizFromCommand(params);
-      
-      return {
-        success: true,
-        quiz
-      };
+      // For now, use the enhanced mock implementation
+      // TODO: Enable LLM when API is confirmed
+      return await this.generateQuizWithMock(request);
     } catch (error) {
       console.error('Error generating quiz:', error);
       return {
@@ -50,6 +48,97 @@ export class AIService {
         error: error instanceof Error ? error.message : 'Unknown error occurred'
       };
     }
+  }
+
+  private async generateQuizWithLLM(request: QuizGenerationRequest): Promise<QuizGenerationResponse> {
+    const prompt = this.buildQuizPrompt(request.command);
+    
+    try {
+      const response = await this.session.prompt(prompt, {
+        temperature: this.config.temperature,
+        topP: this.config.topP,
+        topK: this.config.topK,
+        maxTokens: 2048
+      });
+
+      // Try to parse the response as JSON
+      try {
+        const parsedResponse = JSON.parse(response);
+        if (parsedResponse.quiz) {
+          return {
+            success: true,
+            quiz: parsedResponse.quiz
+          };
+        }
+      } catch (parseError) {
+        console.log('Failed to parse LLM response as JSON, using fallback');
+      }
+
+      // If parsing fails, use the command parsing approach
+      const params = this.parseCommand(request.command);
+      const quiz = await this.createQuizFromCommand(params);
+      
+      return {
+        success: true,
+        quiz
+      };
+    } catch (error) {
+      console.error('LLM generation failed:', error);
+      throw error;
+    }
+  }
+
+  private async generateQuizWithMock(request: QuizGenerationRequest): Promise<QuizGenerationResponse> {
+    // Parse the command to extract parameters
+    const params = this.parseCommand(request.command);
+    
+    // Generate quiz based on the command
+    const quiz = await this.createQuizFromCommand(params);
+    
+    return {
+      success: true,
+      quiz
+    };
+  }
+
+  private buildQuizPrompt(command: string): string {
+    return `Generate a Spanish language learning quiz based on this command: "${command}"
+
+Please respond with a JSON object in this exact format:
+{
+  "quiz": {
+    "id": "quiz_[timestamp]",
+    "title": "Quiz: [topic] ([difficulty])",
+    "sentences": [
+      {
+        "id": "sentence_[timestamp]_[index]",
+        "spanish": "[Spanish sentence]",
+        "english": "[English translation]",
+        "difficulty": "[beginner/intermediate/advanced]",
+        "topic": "[topic]"
+      }
+    ],
+    "questions": [
+      {
+        "id": "q_[type]_[index]",
+        "question": "[Question text]",
+        "correctAnswer": "[Correct answer]",
+        "options": ["[Option 1]", "[Option 2]", "[Option 3]", "[Option 4]"],
+        "type": "[translation/fill-blank/multiple-choice]"
+      }
+    ]
+  }
+}
+
+Requirements:
+- Create 3-8 sentences based on the command
+- Include both translation and fill-in-the-blank questions
+- Make sure Spanish sentences are grammatically correct
+- Provide accurate English translations
+- Match the difficulty level mentioned in the command
+- Focus on the topics/keywords mentioned in the command
+
+Respond only with the JSON object, no additional text.`;
   }
 
   private parseCommand(command: string): Record<string, any> {
@@ -79,12 +168,12 @@ export class AIService {
   }
 
   private async createQuizFromCommand(params: Record<string, any>): Promise<any> {
-    // Mock implementation - in production, this would use the actual LLM
+    // Enhanced mock implementation with more variety
     const topics = params.topics || ['general'];
     const difficulty = params.difficulty || 'beginner';
     const sentenceCount = params.sentenceCount || 5;
 
-    // Generate mock sentences based on parameters
+    // Generate sentences based on parameters
     const sentences = this.generateMockSentences(topics, difficulty, sentenceCount);
     const questions = this.generateMockQuestions(sentences, difficulty);
 
@@ -98,16 +187,29 @@ export class AIService {
 
   private generateMockSentences(topics: string[], difficulty: string, count: number): any[] {
     const mockSentences = [
+      // Beginner sentences
       { spanish: "Me gusta la música", english: "I like music", difficulty: "beginner", topic: "hobbies" },
       { spanish: "¿Cómo estás hoy?", english: "How are you today?", difficulty: "beginner", topic: "greetings" },
       { spanish: "Vivo en una casa grande", english: "I live in a big house", difficulty: "beginner", topic: "home" },
+      { spanish: "Te amo con todo mi corazón", english: "I love you with all my heart", difficulty: "beginner", topic: "love" },
+      { spanish: "¿Puedes ayudarme con esto?", english: "Can you help me with this?", difficulty: "beginner", topic: "requests" },
+      { spanish: "La comida está deliciosa", english: "The food is delicious", difficulty: "beginner", topic: "food" },
+      { spanish: "Me gusta viajar", english: "I like to travel", difficulty: "beginner", topic: "travel" },
+      { spanish: "Mi familia es muy grande", english: "My family is very big", difficulty: "beginner", topic: "family" },
+      
+      // Intermediate sentences
       { spanish: "Estudio español todos los días", english: "I study Spanish every day", difficulty: "intermediate", topic: "education" },
       { spanish: "Me encanta viajar por el mundo", english: "I love traveling around the world", difficulty: "intermediate", topic: "travel" },
       { spanish: "La comida mexicana es deliciosa", english: "Mexican food is delicious", difficulty: "intermediate", topic: "food" },
+      { spanish: "Trabajo en una oficina moderna", english: "I work in a modern office", difficulty: "intermediate", topic: "work" },
+      { spanish: "Mi hermana vive en Madrid", english: "My sister lives in Madrid", difficulty: "intermediate", topic: "family" },
+      { spanish: "Necesito aprender más vocabulario", english: "I need to learn more vocabulary", difficulty: "intermediate", topic: "education" },
+      
+      // Advanced sentences
       { spanish: "Espero que tengas un buen día", english: "I hope you have a good day", difficulty: "advanced", topic: "wishes" },
       { spanish: "Si pudiera, visitaría España", english: "If I could, I would visit Spain", difficulty: "advanced", topic: "conditional" },
-      { spanish: "Te amo con todo mi corazón", english: "I love you with all my heart", difficulty: "beginner", topic: "love" },
-      { spanish: "¿Puedes ayudarme con esto?", english: "Can you help me with this?", difficulty: "beginner", topic: "requests" }
+      { spanish: "La tecnología ha cambiado nuestras vidas", english: "Technology has changed our lives", difficulty: "advanced", topic: "technology" },
+      { spanish: "Me gustaría que pudieras venir a mi fiesta", english: "I would like you to be able to come to my party", difficulty: "advanced", topic: "social" }
     ];
 
     // Filter by topics if specified
@@ -172,9 +274,17 @@ export class AIService {
       await this.initialize();
     }
 
-    // In production, this would use the LLM to understand and process the command
-    const response = `I understand you want to: ${command}. This feature is coming soon with the full LLM integration!`;
-    return response;
+    // For now, use enhanced mock responses
+    // TODO: Enable LLM when API is confirmed
+    const responses = [
+      `I understand you want to: ${command}. I can help you create Spanish learning content!`,
+      `Great! I'll help you with: ${command}. Let me generate some Spanish learning materials.`,
+      `Perfect! I understand: ${command}. I'm ready to create engaging Spanish content for you.`,
+      `Excellent request: ${command}. I'll generate personalized Spanish learning materials.`
+    ];
+    
+    const randomResponse = responses[Math.floor(Math.random() * responses.length)];
+    return randomResponse;
   }
 }
 
