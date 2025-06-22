@@ -16,7 +16,7 @@ export class AIService {
 
   async initialize(): Promise<void> {
     try {
-      // For now, we'll use the mock implementation
+      // For now, we'll use the mock implementation while we resolve the LLM API
       // The LLM integration can be enabled later when we have the correct API
       console.log('AI Service initialized (enhanced mock mode)');
       this.isInitialized = true;
@@ -60,6 +60,8 @@ export class AIService {
         topK: this.config.topK,
         maxTokens: 2048
       });
+
+      console.log('LLM Response:', response);
 
       // Try to parse the response as JSON
       try {
@@ -150,10 +152,19 @@ Respond only with the JSON object, no additional text.`;
     else if (command.includes('advanced')) params.difficulty = 'advanced';
     else params.difficulty = 'beginner';
 
-    // Extract topics/keywords
+    // Extract topics/keywords - improved pattern matching
     const topicMatches = command.match(/[""]([^""]+)[""]/g);
     if (topicMatches) {
       params.topics = topicMatches.map(t => t.replace(/[""]/g, ''));
+    } else {
+      // Fallback: look for common topics in the command
+      const commonTopics = ['love', 'food', 'travel', 'family', 'work', 'home', 'music', 'school', 'friends', 'animals', 'sports', 'weather', 'time', 'numbers', 'colors', 'clothes', 'body', 'house', 'car', 'book', 'movie', 'restaurant', 'hospital', 'store', 'park', 'beach', 'mountain', 'city', 'country'];
+      const foundTopics = commonTopics.filter(topic => command.toLowerCase().includes(topic));
+      if (foundTopics.length > 0) {
+        params.topics = foundTopics;
+      } else {
+        params.topics = ['general'];
+      }
     }
 
     // Extract sentence count
@@ -164,6 +175,7 @@ Respond only with the JSON object, no additional text.`;
       params.sentenceCount = 5;
     }
 
+    console.log('Parsed command params:', params); // Debug log
     return params;
   }
 
@@ -186,6 +198,8 @@ Respond only with the JSON object, no additional text.`;
   }
 
   private generateMockSentences(topics: string[], difficulty: string, count: number): any[] {
+    console.log('Generating sentences with:', { topics, difficulty, count }); // Debug log
+    
     const mockSentences = [
       // Beginner sentences
       { spanish: "Me gusta la música", english: "I like music", difficulty: "beginner", topic: "hobbies" },
@@ -212,20 +226,34 @@ Respond only with the JSON object, no additional text.`;
       { spanish: "Me gustaría que pudieras venir a mi fiesta", english: "I would like you to be able to come to my party", difficulty: "advanced", topic: "social" }
     ];
 
+    console.log('Total mock sentences available:', mockSentences.length); // Debug log
+
     // Filter by topics if specified
     let filtered = mockSentences;
     if (topics.length > 0 && !topics.includes('general')) {
-      filtered = mockSentences.filter(s => topics.some(topic => s.topic?.includes(topic)));
+      filtered = mockSentences.filter(s =>
+        topics.some(topic =>
+          s.topic && (
+            topic.toLowerCase().includes(s.topic.toLowerCase()) ||
+            s.topic.toLowerCase().includes(topic.toLowerCase())
+          )
+        )
+      );
+      console.log('After topic filtering:', filtered.length, 'sentences'); // Debug log
     }
 
     // Filter by difficulty
     filtered = filtered.filter(s => s.difficulty === difficulty);
+    console.log('After difficulty filtering:', filtered.length, 'sentences'); // Debug log
 
     // Return requested number of sentences
-    return filtered.slice(0, count).map((s, i) => ({
+    const result = filtered.slice(0, count).map((s, i) => ({
       ...s,
       id: `sentence_${Date.now()}_${i}`
     }));
+    
+    console.log('Final result:', result.length, 'sentences'); // Debug log
+    return result;
   }
 
   private generateMockQuestions(sentences: any[], difficulty: string): any[] {

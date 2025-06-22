@@ -27,11 +27,22 @@ export default function HomePage() {
 
   const handleAddSentence = async (englishSentence: string) => {
     startTransition(async () => {
-      const newSentence = await CachedAPI.addSentence(englishSentence);
-      if (newSentence) {
-        setSentences(prev => [newSentence, ...prev]);
-        setError(null);
-      } else {
+      try {
+        const newSentence = await CachedAPI.addSentence(englishSentence);
+        if (newSentence) {
+          // Check if this sentence was already in the list (duplicate)
+          const isDuplicate = sentences.some(s => s.id === newSentence.id);
+          if (isDuplicate) {
+            setError('This sentence already exists in your list.');
+          } else {
+            setSentences(prev => [newSentence, ...prev]);
+            setError(null);
+          }
+        } else {
+          setError('Failed to add the sentence. Please try again.');
+        }
+      } catch (error) {
+        console.error('Error adding sentence:', error);
         setError('Failed to add the sentence. Please try again.');
       }
     });
@@ -39,8 +50,14 @@ export default function HomePage() {
 
   const handleDeleteSentence = async (id: string) => {
     startTransition(async () => {
-      await CachedAPI.deleteSentence(id);
-      setSentences(prev => prev.filter(s => s.id !== id));
+      try {
+        await CachedAPI.deleteSentence(id);
+        setSentences(prev => prev.filter(s => s.id !== id));
+        setError(null);
+      } catch (error) {
+        console.error('Failed to delete sentence:', error);
+        setError('Failed to delete the sentence. Please try again.');
+      }
     });
   };
 
@@ -64,22 +81,33 @@ export default function HomePage() {
     setSelectedSentences([]);
   };
 
-  const handleAIQuizGenerated = (quiz: QuizGenerationResponse['quiz']) => {
+  const handleAIQuizGenerated = async (quiz: QuizGenerationResponse['quiz']) => {
     if (quiz) {
-      // Convert AI-generated quiz to sentences and add them to the list
-      const newSentences: Sentence[] = quiz.sentences.map(s => ({
-        id: s.id,
-        englishSentence: s.english,
-        spanishTranslation: s.spanish,
-        audioPath: null,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      }));
-
-      setSentences(prev => [...newSentences, ...prev]);
-      setSelectedSentences(newSentences);
-      setMultiQuizVisible(true);
-      setAiError(null);
+      // For each AI-generated sentence, POST to /api/sentences to trigger TTS/audio
+      const newSentences: Sentence[] = [];
+      const existingSentenceIds = new Set(sentences.map(s => s.id));
+      
+      for (const s of quiz.sentences) {
+        try {
+          const added = await CachedAPI.addSentence(s.english);
+          if (added && !existingSentenceIds.has(added.id)) {
+            // Only add if it's truly new (not already in our current list)
+            newSentences.push(added);
+          }
+        } catch (err) {
+          console.error('Failed to add AI-generated sentence:', err);
+        }
+      }
+      
+      if (newSentences.length > 0) {
+        setSentences(prev => [...newSentences, ...prev]);
+        setSelectedSentences(newSentences);
+        setMultiQuizVisible(true);
+        setAiError(null);
+      } else {
+        // All sentences already existed
+        setAiError('All generated sentences already exist in your list.');
+      }
     }
   };
 

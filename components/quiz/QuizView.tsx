@@ -15,6 +15,7 @@ interface QuizViewProps {
   onWordClick: (word: WordItem) => void;
   onSelectedWordClick: (word: WordItem) => void;
   onClearAnswer: () => void;
+  playingWord?: string | null;
 }
 
 const QuizView: React.FC<QuizViewProps> = ({
@@ -27,6 +28,7 @@ const QuizView: React.FC<QuizViewProps> = ({
   currentSentenceIndex,
   onWordClick,
   onSelectedWordClick,
+  playingWord,
 }) => {
     const spanishSentence = currentSentence.spanishTranslation || currentSentence.englishSentence;
 
@@ -64,9 +66,11 @@ const QuizView: React.FC<QuizViewProps> = ({
         {shuffledWords.map((word) => (
           <button
             key={word.id}
+            className={`btn btn-outline-primary me-2 mb-2 ${
+              selectedWords.some(sw => sw.id === word.id) ? 'btn-primary' : ''
+            }`}
             onClick={() => onWordClick(word)}
-            disabled={word.isSelected}
-            className="btn btn-outline-primary"
+            disabled={selectedWords.some(sw => sw.id === word.id)}
           >
             {word.word}
           </button>

@@ -1,17 +1,31 @@
 // Client-side caching utilities to minimize server calls
 import { Sentence, QuizAttempt } from './types';
 
-// Memory cache for fast access
+// Memory cache for fast access with size limits
 const memoryCache = new Map<string, { data: any; timestamp: number; ttl: number }>();
 const audioCache = new Map<string, { blob: Blob; timestamp: number; ttl: number }>();
 
 // Cache configuration
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 const AUDIO_CACHE_TTL = 30 * 60 * 1000; // 30 minutes
+const MAX_MEMORY_CACHE_SIZE = 100; // Maximum number of items in memory cache
+const MAX_AUDIO_CACHE_SIZE = 50; // Maximum number of audio items in memory cache
 
 // Generic cache functions
 export const setCache = (key: string, data: any, ttl: number = CACHE_TTL): void => {
   const timestamp = Date.now();
+  
+  // Clean up expired items first
+  cleanupExpiredItems();
+  
+  // Check cache size limits
+  if (memoryCache.size >= MAX_MEMORY_CACHE_SIZE) {
+    const oldestKey = memoryCache.keys().next().value;
+    if (oldestKey) {
+      memoryCache.delete(oldestKey);
+    }
+  }
+  
   memoryCache.set(key, { data, timestamp, ttl });
   
   // Also store in localStorage for persistence
@@ -40,8 +54,10 @@ export const getCache = (key: string): any | null => {
     if (stored) {
       const { data, timestamp, ttl } = JSON.parse(stored);
       if (Date.now() - timestamp < ttl) {
-        // Restore to memory cache
-        memoryCache.set(key, { data, timestamp, ttl });
+        // Restore to memory cache if space available
+        if (memoryCache.size < MAX_MEMORY_CACHE_SIZE) {
+          memoryCache.set(key, { data, timestamp, ttl });
+        }
         return data;
       } else {
         localStorage.removeItem(key);
@@ -57,6 +73,18 @@ export const getCache = (key: string): any | null => {
 // Audio-specific cache functions
 export const setAudioCache = (key: string, blob: Blob, ttl: number = AUDIO_CACHE_TTL): void => {
   const timestamp = Date.now();
+  
+  // Clean up expired audio items
+  cleanupExpiredAudioItems();
+  
+  // Check audio cache size limits
+  if (audioCache.size >= MAX_AUDIO_CACHE_SIZE) {
+    const oldestKey = audioCache.keys().next().value;
+    if (oldestKey) {
+      audioCache.delete(oldestKey);
+    }
+  }
+  
   audioCache.set(key, { blob, timestamp, ttl });
 };
 
@@ -71,6 +99,25 @@ export const getAudioCache = (key: string): Blob | null => {
     }
   }
   return null;
+};
+
+// Cache cleanup functions
+const cleanupExpiredItems = (): void => {
+  const now = Date.now();
+  for (const [key, item] of Array.from(memoryCache.entries())) {
+    if (now - item.timestamp >= item.ttl) {
+      memoryCache.delete(key);
+    }
+  }
+};
+
+const cleanupExpiredAudioItems = (): void => {
+  const now = Date.now();
+  for (const [key, item] of Array.from(audioCache.entries())) {
+    if (now - item.timestamp >= item.ttl) {
+      audioCache.delete(key);
+    }
+  }
 };
 
 // Cache management
@@ -142,7 +189,9 @@ export class CachedAPI {
     });
     
     if (!response.ok) {
-      throw new Error('Failed to delete sentence');
+      const errorText = await response.text();
+      console.error(`Delete failed with status ${response.status}:`, errorText);
+      throw new Error(`Failed to delete sentence: ${response.status} ${response.statusText}`);
     }
     
     // Invalidate sentences cache
@@ -152,8 +201,8 @@ export class CachedAPI {
   // Word audio
   static async getWordAudio(text: string, language: string = 'es-ES'): Promise<Blob> {
     const cacheKey = `audio_${text}_${language}`;
-    const cached = getAudioCache(cacheKey);
     
+    const cached = getAudioCache(cacheKey);
     if (cached) {
       return cached;
     }
@@ -165,6 +214,7 @@ export class CachedAPI {
     });
     
     if (!response.ok) {
+      console.error(`Audio API error for "${text}":`, response.status, response.statusText);
       throw new Error('Failed to get word audio');
     }
     
@@ -201,10 +251,8 @@ export class CachedAPI {
     repaired: number;
     errors: string[];
   }> {
-    const response = await fetch('/api/database', {
+    const response = await fetch('/api/database/integrity', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'checkIntegrity' }),
     });
     
     if (!response.ok) {
@@ -216,14 +264,15 @@ export class CachedAPI {
 
   // Clear all word audio cache entries
   static async clearWordAudioCache(): Promise<void> {
-    const response = await fetch('/api/database', {
+    const response = await fetch('/api/database/clear-audio-cache', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'clearWordAudio' }),
     });
     
     if (!response.ok) {
       throw new Error('Failed to clear word audio cache');
     }
+    
+    // Also clear local audio cache
+    clearAudioCache();
   }
 } 

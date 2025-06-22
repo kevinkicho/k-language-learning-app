@@ -18,7 +18,19 @@ export class DatabaseDrizzle {
     return result[0] || null;
   }
 
+  async findSentenceByEnglishText(englishSentence: string): Promise<Sentence | null> {
+    const result = await db.select().from(sentences).where(eq(sentences.englishSentence, englishSentence));
+    return result[0] || null;
+  }
+
   async addSentence(englishSentence: string, spanishTranslation?: string): Promise<Sentence> {
+    // Check if sentence already exists
+    const existingSentence = await this.findSentenceByEnglishText(englishSentence);
+    if (existingSentence) {
+      console.log(`Sentence already exists: "${englishSentence}"`);
+      return existingSentence;
+    }
+
     const id = nanoid();
     const now = new Date().toISOString();
     
@@ -32,6 +44,7 @@ export class DatabaseDrizzle {
     };
 
     await db.insert(sentences).values(newSentence);
+    console.log(`Added new sentence: "${englishSentence}"`);
     return newSentence;
   }
 
@@ -52,6 +65,9 @@ export class DatabaseDrizzle {
   }
 
   async deleteSentence(id: string): Promise<void> {
+    // First delete related quiz attempts to handle foreign key constraint
+    await db.delete(quizAttempts).where(eq(quizAttempts.sentenceId, id));
+    // Then delete the sentence
     await db.delete(sentences).where(eq(sentences.id, id));
   }
 

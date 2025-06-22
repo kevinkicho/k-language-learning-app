@@ -3,6 +3,7 @@
 import { useEffect, useReducer, useState, useCallback, useRef } from 'react';
 import { Sentence } from '@/lib/types';
 import { CachedAPI } from '@/lib/cache-utils';
+import { useAudioPlayer } from '@/hooks/useAudioPlayer';
 import { quizReducer, initialQuizState } from './quiz/useMultiQuiz';
 import { QuizActionType } from './quiz/actions';
 import FinalReview from './quiz/FinalReview';
@@ -24,32 +25,27 @@ export default function MultiQuizModal({ sentences, isRandom, onClose }: MultiQu
   });
   const [countdown, setCountdown] = useState(0);
 
-  const audioUrlRef = useRef<string | null>(null);
+  const { playingWord, playWordAudio } = useAudioPlayer();
   const checkAnswerTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const currentSentence = state.sentences[state.currentSentenceIndex];
 
-  const playWordAudio = useCallback(async (word: string) => {
-    dispatch({ type: QuizActionType.SET_PLAYING_WORD, payload: word });
-    if (audioUrlRef.current) {
-      URL.revokeObjectURL(audioUrlRef.current);
-    }
+  const handleWordClick = useCallback(async (word: any) => {
     try {
-      const audioBlob = await CachedAPI.getWordAudio(word, 'es-ES');
-      const audioUrl = URL.createObjectURL(audioBlob);
-      audioUrlRef.current = audioUrl;
-      const audio = new Audio(audioUrl);
-      audio.play();
-      audio.onended = () => {
-        dispatch({ type: QuizActionType.SET_PLAYING_WORD, payload: null });
-        URL.revokeObjectURL(audioUrl);
-        audioUrlRef.current = null;
-      };
+      console.log(`🖱️ Word clicked: ${word.word}`);
+      // Play audio first
+      console.log(`🎵 Calling playWordAudio for: ${word.word}`);
+      await playWordAudio(word.word);
+      console.log(`✅ Audio played successfully for: ${word.word}`);
+      // Then select the word
+      console.log(`📝 Dispatching SELECT_WORD for: ${word.word}`);
+      dispatch({ type: QuizActionType.SELECT_WORD, payload: word });
     } catch (error) {
-      console.error('Error getting word audio:', error);
-      dispatch({ type: QuizActionType.SET_PLAYING_WORD, payload: null });
+      console.error('❌ Error in handleWordClick:', error);
+      // Still select the word even if audio fails
+      dispatch({ type: QuizActionType.SELECT_WORD, payload: word });
     }
-  }, []);
+  }, [playWordAudio]);
 
   const checkAnswer = useCallback(() => {
     const spanishSentence = currentSentence.spanishTranslation || currentSentence.englishSentence;
@@ -92,72 +88,59 @@ export default function MultiQuizModal({ sentences, isRandom, onClose }: MultiQu
     }
   }, [state.isFinalReview, state.totalScore, state.completedQuizzes, onClose]);
 
-  const handleWordClick = (word: any) => {
-    playWordAudio(word.word);
-    dispatch({ type: QuizActionType.SELECT_WORD, payload: word });
-  };
-
-  if (!currentSentence && !state.isFinalReview) {
-    return <LoadingSpinner />;
-  }
-  
-  const spanishSentence = currentSentence?.spanishTranslation || currentSentence?.englishSentence || "";
-
+  // Modal wrapper
   return (
-    <div className="modal" style={{ display: 'block', backgroundColor: 'rgba(0,0,0,0.5)' }}>
-        <div className="modal-dialog modal-dialog-centered modal-lg">
-            <div className="modal-content">
-                <div className="modal-header">
-                    <h5 className="modal-title">Multi-Sentence Quiz</h5>
-                    <Button onClick={onClose} className="btn-close"><></></Button>
-                </div>
-                <div className="modal-body">
-                    {state.isFinalReview ? (
-                      <FinalReview
-                        quizState={state}
-                        onClose={onClose}
-                        countdown={countdown}
-                      />
-                    ) : (
-                      <>
-                        <QuizView
-                          currentSentence={currentSentence}
-                          shuffledWords={state.shuffledWords}
-                          selectedWords={state.selectedWords}
-                          isCorrect={state.isCorrect}
-                          progressPercentage={(state.currentSentenceIndex / state.sentences.length) * 100}
-                          totalSentences={state.sentences.length}
-                          currentSentenceIndex={state.currentSentenceIndex}
-                          onWordClick={handleWordClick}
-                          onSelectedWordClick={(word) => dispatch({ type: QuizActionType.DESELECT_WORD, payload: word })}
-                          onClearAnswer={() => dispatch({ type: QuizActionType.CLEAR_ANSWER })}
-                        />
-                        {state.isCorrect !== null ? (
-                          <QuizResult
-                              isCorrect={state.isCorrect}
-                              score={state.score}
-                              spanishSentence={spanishSentence}
-                              isLastSentence={state.currentSentenceIndex === state.sentences.length - 1}
-                              onResetQuiz={() => dispatch({ type: QuizActionType.RESET_QUIZ })}
-                              onNextQuiz={() => dispatch({ type: QuizActionType.NEXT_QUIZ })}
-                          />
-                        ) : (
-                          <div className="text-muted fst-italic mt-3">
-                            Select {spanishSentence.split(' ').length} words to complete the sentence.
-                          </div>
-                        )}
-                      </>
-                    )}
-                </div>
-                {!state.isFinalReview &&
-                    <div className="modal-footer">
-                        <Button variant="secondary" onClick={onClose}>
-                            Exit Quiz
-                        </Button>
-                    </div>
-                }
-            </div>
+    <div className="modal show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
+      <div className="modal-dialog modal-dialog-centered modal-lg">
+        <div className="modal-content">
+          <div className="modal-header">
+            <h5 className="modal-title">
+              {isRandom ? 'Random Quiz' : 'Selected Quiz'} 
+              ({state.currentSentenceIndex + 1}/{state.sentences.length})
+            </h5>
+            <button 
+              type="button" 
+              className="btn-close" 
+              onClick={onClose}
+              aria-label="Close"
+            ></button>
+          </div>
+          <div className="modal-body">
+            {!currentSentence && !state.isFinalReview ? (
+              <LoadingSpinner />
+            ) : state.isFinalReview ? (
+              <FinalReview
+                quizState={state}
+                onClose={onClose}
+                countdown={countdown}
+              />
+            ) : state.isCorrect !== null ? (
+              <QuizResult
+                isCorrect={state.isCorrect}
+                score={state.score}
+                spanishSentence={currentSentence?.spanishTranslation || currentSentence?.englishSentence || ""}
+                isLastSentence={state.currentSentenceIndex === state.sentences.length - 1}
+                onResetQuiz={() => dispatch({ type: QuizActionType.RESET_QUIZ })}
+                onNextQuiz={() => dispatch({ type: QuizActionType.NEXT_QUIZ })}
+              />
+            ) : (
+              <QuizView
+                currentSentence={currentSentence}
+                shuffledWords={state.shuffledWords}
+                selectedWords={state.selectedWords}
+                isCorrect={state.isCorrect}
+                progressPercentage={(state.currentSentenceIndex / state.sentences.length) * 100}
+                totalSentences={state.sentences.length}
+                currentSentenceIndex={state.currentSentenceIndex}
+                onWordClick={handleWordClick}
+                onSelectedWordClick={(word) => dispatch({ type: QuizActionType.DESELECT_WORD, payload: word })}
+                onClearAnswer={() => dispatch({ type: QuizActionType.CLEAR_ANSWER })}
+                playingWord={playingWord}
+              />
+            )}
+          </div>
         </div>
+      </div>
     </div>
   );
 }

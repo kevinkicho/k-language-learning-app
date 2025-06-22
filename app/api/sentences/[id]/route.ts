@@ -32,17 +32,22 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params;
+    console.log(`Attempting to delete sentence with ID: ${id}`);
     
     // Check if sentence exists
     const sentence = await databaseDrizzle.getSentenceById(id);
     if (!sentence) {
+      console.log(`Sentence not found with ID: ${id}`);
       return NextResponse.json(
         { error: 'Sentence not found' },
         { status: 404 }
       );
     }
     
+    console.log(`Found sentence to delete: ${sentence.englishSentence}`);
     await databaseDrizzle.deleteSentence(id);
+    console.log(`Successfully deleted sentence with ID: ${id}`);
+    
     return NextResponse.json({ message: 'Sentence deleted successfully' });
   } catch (error) {
     console.error('Error deleting sentence:', error);

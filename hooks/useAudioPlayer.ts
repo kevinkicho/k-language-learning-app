@@ -12,8 +12,10 @@ export function useAudioPlayer(): UseAudioPlayerReturn {
   const [playingWord, setPlayingWord] = useState<string | null>(null);
   const audioUrlRef = useRef<string | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const isPlayingRef = useRef(false);
 
   const stopAudio = useCallback(() => {
+    console.log('Stopping audio playback');
     if (audioRef.current) {
       audioRef.current.pause();
       audioRef.current = null;
@@ -23,31 +25,46 @@ export function useAudioPlayer(): UseAudioPlayerReturn {
       audioUrlRef.current = null;
     }
     setPlayingWord(null);
+    isPlayingRef.current = false;
   }, []);
 
   const playWordAudio = useCallback(async (word: string, language: string = 'es-ES') => {
-    if (playingWord === word) return; // Prevent multiple simultaneous plays
+    console.log(`🎵 Attempting to play audio for word: "${word}"`);
     
-    // Stop any currently playing audio
-    stopAudio();
+    // Stop any currently playing audio before starting new one
+    if (isPlayingRef.current) {
+      console.log(`🛑 Stopping previous audio to play new word: "${word}"`);
+      stopAudio();
+    }
     
     setPlayingWord(word);
+    isPlayingRef.current = true;
     
     try {
-      // Get audio blob from cached API
+      console.log(`📡 Fetching audio blob for "${word}"`);
       const audioBlob = await CachedAPI.getWordAudio(word, language);
+      console.log(`✅ Received audio blob for "${word}":`, { size: audioBlob.size, type: audioBlob.type });
       
-      // Create audio URL
       const audioUrl = createAudioUrl(audioBlob);
       audioUrlRef.current = audioUrl;
+      console.log(`🔗 Created audio URL for "${word}":`, audioUrl);
       
-      // Create audio element
       const audio = new Audio(audioUrl);
       audioRef.current = audio;
       
       // Set up event listeners
+      const handleCanPlay = () => {
+        console.log(`🎧 Audio can play for "${word}"`);
+      };
+      
+      const handlePlay = () => {
+        console.log(`▶️ Audio started playing for "${word}"`);
+      };
+      
       const handleEnded = () => {
+        console.log(`⏹️ Audio ended for "${word}"`);
         setPlayingWord(null);
+        isPlayingRef.current = false;
         if (audioUrlRef.current === audioUrl) {
           cleanupAudioUrl(audioUrl);
           audioUrlRef.current = null;
@@ -56,8 +73,9 @@ export function useAudioPlayer(): UseAudioPlayerReturn {
       };
       
       const handleError = (error: Event) => {
-        console.error('Audio playback error:', error);
+        console.error(`❌ Audio error for "${word}":`, error);
         setPlayingWord(null);
+        isPlayingRef.current = false;
         if (audioUrlRef.current === audioUrl) {
           cleanupAudioUrl(audioUrl);
           audioUrlRef.current = null;
@@ -65,31 +83,22 @@ export function useAudioPlayer(): UseAudioPlayerReturn {
         audioRef.current = null;
       };
       
-      audio.addEventListener('ended', handleEnded);
-      audio.addEventListener('error', handleError);
+      // Add event listeners
+      audio.addEventListener('canplay', handleCanPlay, { once: true });
+      audio.addEventListener('play', handlePlay, { once: true });
+      audio.addEventListener('ended', handleEnded, { once: true });
+      audio.addEventListener('error', handleError, { once: true });
       
-      // Try to play the audio
-      try {
-        await audio.play();
-      } catch (playError) {
-        console.error('Failed to play audio:', playError);
-        setPlayingWord(null);
-        if (audioUrlRef.current === audioUrl) {
-          cleanupAudioUrl(audioUrl);
-          audioUrlRef.current = null;
-        }
-        audioRef.current = null;
-        // Clean up event listeners
-        audio.removeEventListener('ended', handleEnded);
-        audio.removeEventListener('error', handleError);
-      }
+      console.log(`🎯 Attempting to play audio for "${word}"`);
+      await audio.play();
+      console.log(`🎉 Successfully started playing audio for "${word}"`);
     } catch (error) {
-      console.error('Error getting word audio:', error);
+      console.error(`💥 Error playing word audio for "${word}":`, error);
       setPlayingWord(null);
+      isPlayingRef.current = false;
     }
-  }, [playingWord, stopAudio]);
+  }, [stopAudio]);
 
-  // Cleanup on unmount
   useEffect(() => {
     return () => {
       stopAudio();

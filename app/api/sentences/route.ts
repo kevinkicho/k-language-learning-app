@@ -26,14 +26,23 @@ export async function POST(request: NextRequest) {
       );
     }
     
+    // Check if sentence already exists first
+    const existingSentence = await databaseDrizzle.findSentenceByEnglishText(englishSentence);
+    if (existingSentence) {
+      console.log(`Sentence already exists: "${englishSentence}"`);
+      return NextResponse.json(existingSentence, { status: 200 });
+    }
+    
     // Check if translation is already cached
     const cachedTranslation = await databaseDrizzle.getTranslation(englishSentence);
     let translation: string | undefined;
     let audioPath: string | undefined;
+    let usedCachedTranslation = false;
     
     if (cachedTranslation) {
       // Use cached translation
       translation = cachedTranslation.spanishText;
+      usedCachedTranslation = true;
     } else {
       // Generate new translation and cache it
       try {
@@ -48,19 +57,25 @@ export async function POST(request: NextRequest) {
     // First, add the sentence to database
     const sentence = await databaseDrizzle.addSentence(englishSentence, translation);
     
-    // Generate audio if we have a translation
-    if (translation && !cachedTranslation) {
+    // Always try to generate audio if we have a translation
+    if (translation) {
       try {
         audioPath = await googleServices.generateAudio(translation, sentence.id);
         await databaseDrizzle.updateSentence(sentence.id, translation, audioPath);
+        console.log(`Audio generated and saved for sentence: ${sentence.id}, path: ${audioPath}`);
       } catch (audioError) {
         console.error('Audio generation error:', audioError);
         // Continue without audio
       }
+    } else {
+      console.warn('No translation available, skipping audio generation.');
     }
     
     // Return the final sentence
     const finalSentence = await databaseDrizzle.getSentenceById(sentence.id);
+    if (!finalSentence?.audioPath) {
+      console.warn(`No audioPath for sentence: ${sentence.id}. The play button will not appear.`);
+    }
     return NextResponse.json(finalSentence, { status: 201 });
   } catch (error) {
     console.error('Error adding sentence:', error);
