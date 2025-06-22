@@ -1,0 +1,229 @@
+// Client-side caching utilities to minimize server calls
+import { Sentence, QuizAttempt } from './types';
+
+// Memory cache for fast access
+const memoryCache = new Map<string, { data: any; timestamp: number; ttl: number }>();
+const audioCache = new Map<string, { blob: Blob; timestamp: number; ttl: number }>();
+
+// Cache configuration
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+const AUDIO_CACHE_TTL = 30 * 60 * 1000; // 30 minutes
+
+// Generic cache functions
+export const setCache = (key: string, data: any, ttl: number = CACHE_TTL): void => {
+  const timestamp = Date.now();
+  memoryCache.set(key, { data, timestamp, ttl });
+  
+  // Also store in localStorage for persistence
+  try {
+    localStorage.setItem(key, JSON.stringify({ data, timestamp, ttl }));
+  } catch (error) {
+    // localStorage might be full or disabled
+  }
+};
+
+export const getCache = (key: string): any | null => {
+  // Check memory cache first
+  const memoryItem = memoryCache.get(key);
+  if (memoryItem) {
+    const { data, timestamp, ttl } = memoryItem;
+    if (Date.now() - timestamp < ttl) {
+      return data;
+    } else {
+      memoryCache.delete(key);
+    }
+  }
+  
+  // Check localStorage
+  try {
+    const stored = localStorage.getItem(key);
+    if (stored) {
+      const { data, timestamp, ttl } = JSON.parse(stored);
+      if (Date.now() - timestamp < ttl) {
+        // Restore to memory cache
+        memoryCache.set(key, { data, timestamp, ttl });
+        return data;
+      } else {
+        localStorage.removeItem(key);
+      }
+    }
+  } catch (error) {
+    // localStorage might be corrupted
+  }
+  
+  return null;
+};
+
+// Audio-specific cache functions
+export const setAudioCache = (key: string, blob: Blob, ttl: number = AUDIO_CACHE_TTL): void => {
+  const timestamp = Date.now();
+  audioCache.set(key, { blob, timestamp, ttl });
+};
+
+export const getAudioCache = (key: string): Blob | null => {
+  const item = audioCache.get(key);
+  if (item) {
+    const { blob, timestamp, ttl } = item;
+    if (Date.now() - timestamp < ttl) {
+      return blob;
+    } else {
+      audioCache.delete(key);
+    }
+  }
+  return null;
+};
+
+// Cache management
+export const clearCache = (): void => {
+  memoryCache.clear();
+  try {
+    localStorage.clear();
+  } catch (error) {
+    // localStorage might be disabled
+  }
+};
+
+export const clearAudioCache = (): void => {
+  audioCache.clear();
+};
+
+export const removeCache = (key: string): void => {
+  memoryCache.delete(key);
+  try {
+    localStorage.removeItem(key);
+  } catch (error) {
+    // localStorage might be disabled
+  }
+};
+
+// Cached API wrapper
+export class CachedAPI {
+  // Sentences
+  static async getSentences(): Promise<Sentence[]> {
+    const cacheKey = 'sentences';
+    const cached = getCache(cacheKey);
+    
+    if (cached) {
+      return cached;
+    }
+    
+    const response = await fetch('/api/sentences');
+    if (!response.ok) {
+      throw new Error('Failed to fetch sentences');
+    }
+    
+    const data = await response.json();
+    setCache(cacheKey, data);
+    return data;
+  }
+  
+  static async addSentence(englishSentence: string): Promise<Sentence> {
+    const response = await fetch('/api/sentences', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ englishSentence }),
+    });
+    
+    if (!response.ok) {
+      throw new Error('Failed to add sentence');
+    }
+    
+    const sentence = await response.json();
+    
+    // Invalidate sentences cache
+    removeCache('sentences');
+    
+    return sentence;
+  }
+  
+  static async deleteSentence(id: string): Promise<void> {
+    const response = await fetch(`/api/sentences/${id}`, {
+      method: 'DELETE',
+    });
+    
+    if (!response.ok) {
+      throw new Error('Failed to delete sentence');
+    }
+    
+    // Invalidate sentences cache
+    removeCache('sentences');
+  }
+  
+  // Word audio
+  static async getWordAudio(text: string, language: string = 'es-ES'): Promise<Blob> {
+    const cacheKey = `audio_${text}_${language}`;
+    const cached = getAudioCache(cacheKey);
+    
+    if (cached) {
+      return cached;
+    }
+    
+    const response = await fetch('/api/audio/word', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text, language }),
+    });
+    
+    if (!response.ok) {
+      throw new Error('Failed to get word audio');
+    }
+    
+    const blob = await response.blob();
+    setAudioCache(cacheKey, blob);
+    return blob;
+  }
+  
+  // Quiz attempts
+  static async saveQuizAttempt(sentenceId: string, score: number, totalWords: number): Promise<void> {
+    const response = await fetch('/api/quiz', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sentenceId, score, totalWords }),
+    });
+    
+    if (!response.ok) {
+      throw new Error('Failed to save quiz attempt');
+    }
+    
+    // Invalidate quiz attempts cache for this sentence
+    removeCache(`quiz_attempts_${sentenceId}`);
+  }
+  
+  // Cache management
+  static clearAudioCache(): void {
+    clearAudioCache();
+  }
+
+  // Database integrity check
+  static async checkDatabaseIntegrity(): Promise<{
+    checked: number;
+    missing: number;
+    repaired: number;
+    errors: string[];
+  }> {
+    const response = await fetch('/api/database', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'checkIntegrity' }),
+    });
+    
+    if (!response.ok) {
+      throw new Error('Failed to check database integrity');
+    }
+    
+    return await response.json();
+  }
+
+  // Clear all word audio cache entries
+  static async clearWordAudioCache(): Promise<void> {
+    const response = await fetch('/api/database', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'clearWordAudio' }),
+    });
+    
+    if (!response.ok) {
+      throw new Error('Failed to clear word audio cache');
+    }
+  }
+} 

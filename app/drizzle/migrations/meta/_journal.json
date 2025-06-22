@@ -1,0 +1,13 @@
+{
+  "version": "7",
+  "dialect": "sqlite",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "6",
+      "when": 1750613319846,
+      "tag": "0000_swift_masked_marvel",
+      "breakpoints": true
+    }
+  ]
+}

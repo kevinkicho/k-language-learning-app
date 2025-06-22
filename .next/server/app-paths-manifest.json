@@ -1,0 +1,7 @@
+{
+  "/api/database/route": "app/api/database/route.js",
+  "/_not-found/page": "app/_not-found/page.js",
+  "/api/sentences/route": "app/api/sentences/route.js",
+  "/database/page": "app/database/page.js",
+  "/page": "app/page.js"
+}
