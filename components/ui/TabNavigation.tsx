@@ -1,6 +1,13 @@
 'use client';
 
-import { TabConfig } from '@/lib/types';
+import { ReactNode } from 'react';
+
+export interface TabConfig {
+  id: string;
+  label: string;
+  count?: number | null;
+  icon?: ReactNode;
+}
 
 interface TabNavigationProps {
   tabs: TabConfig[];
@@ -9,34 +16,25 @@ interface TabNavigationProps {
   className?: string;
 }
 
-export default function TabNavigation({ 
-  tabs, 
-  activeTab, 
-  onTabChange, 
-  className = '' 
-}: TabNavigationProps) {
+export default function TabNavigation({ tabs, activeTab, onTabChange, className = '' }: TabNavigationProps) {
   return (
-    <div className={`border-b border-gray-200 ${className}`}>
-      <nav className="-mb-px flex space-x-8 px-6">
-        {tabs.map((tab) => (
+    <ul className={`nav nav-tabs ${className}`}>
+      {tabs.map((tab) => (
+        <li className="nav-item" key={tab.id}>
           <button
-            key={tab.id}
+            className={`nav-link ${activeTab === tab.id ? 'active' : ''}`}
             onClick={() => onTabChange(tab.id)}
-            className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
-              activeTab === tab.id
-                ? 'border-primary-500 text-primary-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-            }`}
           >
+            {tab.icon && <span className="me-2">{tab.icon}</span>}
             {tab.label}
             {tab.count !== null && tab.count !== undefined && (
-              <span className="ml-2 bg-gray-100 text-gray-600 py-1 px-2 rounded-full text-xs">
+              <span className="badge bg-secondary ms-2">
                 {tab.count}
               </span>
             )}
           </button>
-        ))}
-      </nav>
-    </div>
+        </li>
+      ))}
+    </ul>
   );
 } 

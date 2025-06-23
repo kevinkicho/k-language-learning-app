@@ -6,6 +6,7 @@ export const sentences = sqliteTable('sentences', {
   englishSentence: text('english_sentence').notNull(),
   spanishTranslation: text('spanish_translation'),
   audioPath: text('audio_path'),
+  quizGroup: text('quiz_group'),
   createdAt: text('created_at').notNull(),
   updatedAt: text('updated_at').notNull(),
 });

@@ -426,20 +426,35 @@ A modern, AI-powered language learning application built with Next.js, featuring
    ```
 
 3. **Set up environment variables**
-   Create a `.env.local` file:
+   
+   Create a `.env.local` file with the following variables:
+   
    ```env
-   GOOGLE_APPLICATION_CREDENTIALS=path/to/your/service-account-key.json
+   # Google Cloud Gemini AI API Key (Required)
+   # Get your API key from: https://makersuite.google.com/app/apikey
+   GOOGLE_GEMINI_API_KEY=your_gemini_api_key_here
+   
+   # Google Cloud Translation API (Required for audio generation)
+   GOOGLE_CLOUD_PROJECT_ID=your_project_id
+   GOOGLE_CLOUD_PRIVATE_KEY_ID=your_private_key_id
+   GOOGLE_CLOUD_PRIVATE_KEY=your_private_key
+   GOOGLE_CLOUD_CLIENT_EMAIL=your_client_email
+   GOOGLE_CLOUD_CLIENT_ID=your_client_id
+   GOOGLE_CLOUD_AUTH_URI=https://accounts.google.com/o/oauth2/auth
+   GOOGLE_CLOUD_TOKEN_URI=https://oauth2.googleapis.com/token
+   GOOGLE_CLOUD_AUTH_PROVIDER_X509_CERT_URL=https://www.googleapis.com/oauth2/v1/certs
+   GOOGLE_CLOUD_CLIENT_X509_CERT_URL=your_client_x509_cert_url
    ```
 
-4. **Download the AI model** (Optional but recommended)
-   ```bash
-   npm run download-model
-   ```
-   This downloads the Gemma-3-1b model (~2GB) for on-device AI features.
+4. **Set up Google Cloud APIs**
+   
+   Enable the following APIs in your Google Cloud Console:
+   - Gemini API
+   - Cloud Translation API
+   - Cloud Text-to-Speech API
 
-5. **Set up the database**
+5. **Run database migrations**
    ```bash
-   npm run db:generate
    npm run db:migrate
    ```
 

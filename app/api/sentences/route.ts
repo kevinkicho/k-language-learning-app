@@ -17,7 +17,7 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
-    const { englishSentence } = await request.json();
+    const { englishSentence, quizGroup } = await request.json();
     
     if (!englishSentence || typeof englishSentence !== 'string') {
       return NextResponse.json(
@@ -54,8 +54,8 @@ export async function POST(request: NextRequest) {
       }
     }
     
-    // First, add the sentence to database
-    const sentence = await databaseDrizzle.addSentence(englishSentence, translation);
+    // First, add the sentence to database with quizGroup
+    const sentence = await databaseDrizzle.addSentence(englishSentence, translation, quizGroup);
     
     // Always try to generate audio if we have a translation
     if (translation) {

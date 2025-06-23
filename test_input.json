@@ -1,0 +1,4 @@
+{
+  "prompt": "command: \"create a sentence using because\"",
+  "modelPath": "models/gemma-3-1b-it-q4_0.gguf"
+} 

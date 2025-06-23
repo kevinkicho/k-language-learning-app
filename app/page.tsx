@@ -8,6 +8,7 @@ import SentenceList from '@/components/SentenceList';
 import QuizModal from '@/components/QuizModal';
 import MultiQuizModal from '@/components/MultiQuizModal';
 import { AICommandInterface } from '@/components/AICommandInterface';
+import TabNavigation, { TabConfig } from '@/components/ui/TabNavigation';
 
 export default function HomePage() {
   const [sentences, setSentences] = useState<Sentence[]>([]);
@@ -17,6 +18,54 @@ export default function HomePage() {
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [aiError, setAiError] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<'all' | 'groups'>('all');
+  const [currentQuizGroup, setCurrentQuizGroup] = useState<string | null>(null);
+
+  // Get unique quiz groups from sentences
+  const quizGroups = Array.from(new Set(sentences
+    .filter(s => s.quizGroup)
+    .map(s => s.quizGroup!)
+  )).sort();
+
+  // Group sentences by quiz group
+  const groupedSentences = quizGroups.reduce((acc, group) => {
+    acc[group] = sentences.filter(s => s.quizGroup === group);
+    return acc;
+  }, {} as Record<string, Sentence[]>);
+
+  // Helper function to get display name for a group (without timestamp)
+  const getGroupDisplayName = (groupId: string) => {
+    const parts = groupId.split('_');
+    if (parts.length > 1) {
+      // Remove the timestamp (last part) and join the rest
+      return parts.slice(0, -1).join('_');
+    }
+    return groupId;
+  };
+
+  // Get sentences for current view
+  const getCurrentSentences = () => {
+    if (activeTab === 'groups' && currentQuizGroup) {
+      return groupedSentences[currentQuizGroup] || [];
+    }
+    return sentences;
+  };
+
+  const currentSentences = getCurrentSentences();
+
+  // Tab configuration
+  const tabs: TabConfig[] = [
+    {
+      id: 'all',
+      label: 'All Sentences',
+      count: sentences.length
+    },
+    {
+      id: 'groups',
+      label: 'Quiz Groups',
+      count: quizGroups.length
+    }
+  ];
 
   useEffect(() => {
     startTransition(async () => {
@@ -74,22 +123,48 @@ export default function HomePage() {
   };
   
   const handleSelectAll = () => {
-    setSelectedSentences(sentences);
+    setSelectedSentences(currentSentences);
   };
 
   const handleDeselectAll = () => {
     setSelectedSentences([]);
   };
 
-  const handleAIQuizGenerated = async (quiz: QuizGenerationResponse['quiz']) => {
+  const handleAIQuizGenerated = async (quiz: QuizGenerationResponse['quiz'], userCommand?: string) => {
     if (quiz) {
+      // Generate a descriptive group name based on user command
+      let groupName = 'Spanish Quiz';
+      
+      if (userCommand) {
+        // Clean up the user command to create a readable group name
+        const cleanCommand = userCommand
+          .toLowerCase()
+          .replace(/^(i want to learn|teach me|show me|help me learn|i need|what are|how do you say)/, '')
+          .replace(/^(spanish|in spanish|for spanish)/, '')
+          .replace(/^(useful |basic |common |essential )/, '')
+          .replace(/[?.,!]/g, '')
+          .trim();
+        
+        if (cleanCommand) {
+          // Capitalize first letter and limit length
+          groupName = cleanCommand
+            .split(' ')
+            .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+            .join(' ')
+            .substring(0, 40); // Limit to 40 characters for cleaner display
+        }
+      }
+      
+      // Add timestamp to ensure uniqueness
+      const groupId = `${groupName}_${Date.now()}`;
+      
       // For each AI-generated sentence, POST to /api/sentences to trigger TTS/audio
       const newSentences: Sentence[] = [];
       const existingSentenceIds = new Set(sentences.map(s => s.id));
       
       for (const s of quiz.sentences) {
         try {
-          const added = await CachedAPI.addSentence(s.english);
+          const added = await CachedAPI.addSentence(s.english, groupId);
           if (added && !existingSentenceIds.has(added.id)) {
             // Only add if it's truly new (not already in our current list)
             newSentences.push(added);
@@ -104,6 +179,10 @@ export default function HomePage() {
         setSelectedSentences(newSentences);
         setMultiQuizVisible(true);
         setAiError(null);
+        
+        // Switch to groups tab and select the new group
+        setActiveTab('groups');
+        setCurrentQuizGroup(groupId);
       } else {
         // All sentences already existed
         setAiError('All generated sentences already exist in your list.');
@@ -113,6 +192,17 @@ export default function HomePage() {
 
   const handleAIError = (error: string) => {
     setAiError(error);
+  };
+
+  const handleTabChange = (tabId: string) => {
+    setActiveTab(tabId as 'all' | 'groups');
+    if (tabId === 'groups' && quizGroups.length > 0 && !currentQuizGroup) {
+      setCurrentQuizGroup(quizGroups[0]);
+    }
+  };
+
+  const handleGroupChange = (groupId: string) => {
+    setCurrentQuizGroup(groupId);
   };
 
   return (
@@ -155,12 +245,12 @@ export default function HomePage() {
                 <h2 className="card-title">Quick Actions</h2>
                 <div className="d-grid gap-2">
                     <button className="btn btn-info" onClick={() => {
-                        setSelectedSentences(sentences);
+                        setSelectedSentences(currentSentences);
                         setMultiQuizVisible(true);
                     }}>
-                        Start Random Quiz ({sentences.length})
+                        Start Random Quiz ({currentSentences.length})
                     </button>
-                    <button className="btn btn-secondary" onClick={handleSelectAll}>Select All ({sentences.length})</button>
+                    <button className="btn btn-secondary" onClick={handleSelectAll}>Select All ({currentSentences.length})</button>
                     <button className="btn btn-light" onClick={handleDeselectAll}>Deselect All ({selectedSentences.length})</button>
                 </div>
             </div>
@@ -170,6 +260,33 @@ export default function HomePage() {
         <div className="col-md-8">
             <section>
                 <h2>Sentences</h2>
+                
+                {/* Tab Navigation */}
+                <TabNavigation 
+                  tabs={tabs}
+                  activeTab={activeTab}
+                  onTabChange={handleTabChange}
+                  className="mb-3"
+                />
+
+                {/* Quiz Group Selector */}
+                {activeTab === 'groups' && quizGroups.length > 0 && (
+                  <div className="mb-3">
+                    <label className="form-label">Select Quiz Group:</label>
+                    <select 
+                      className="form-select"
+                      value={currentQuizGroup || ''}
+                      onChange={(e) => handleGroupChange(e.target.value)}
+                    >
+                      {quizGroups.map(group => (
+                        <option key={group} value={group}>
+                          {getGroupDisplayName(group)} ({groupedSentences[group].length} sentences)
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
                 <p>Select sentences below to begin a quiz.</p>
                 {selectedSentences.length > 0 &&
                     <button className="btn btn-primary mb-3" onClick={() => setMultiQuizVisible(true)} disabled={selectedSentences.length === 0}>
@@ -177,7 +294,7 @@ export default function HomePage() {
                     </button>
                 }
                 <SentenceList
-                    sentences={sentences}
+                    sentences={currentSentences}
                     selectedIds={selectedSentences.map(s => s.id)}
                     onDelete={handleDeleteSentence}
                     onStartQuiz={handleStartQuiz}
@@ -197,12 +314,9 @@ export default function HomePage() {
 
       {isMultiQuizVisible && (
         <MultiQuizModal
-          sentences={selectedSentences.length > 0 ? selectedSentences : sentences}
+          sentences={selectedSentences.length > 0 ? selectedSentences : currentSentences}
           isRandom={selectedSentences.length === 0}
-          onClose={() => {
-            setMultiQuizVisible(false);
-            setSelectedSentences([]);
-          }}
+          onClose={() => setMultiQuizVisible(false)}
         />
       )}
     </div>

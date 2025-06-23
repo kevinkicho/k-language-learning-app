@@ -6,7 +6,7 @@ import LoadingSpinner from './ui/LoadingSpinner';
 import { QuizGenerationRequest, QuizGenerationResponse } from '@/lib/types';
 
 interface AICommandInterfaceProps {
-  onQuizGenerated: (quiz: QuizGenerationResponse['quiz']) => void;
+  onQuizGenerated: (quiz: QuizGenerationResponse['quiz'], userCommand?: string) => void;
   onError: (error: string) => void;
 }
 
@@ -17,11 +17,14 @@ export const AICommandInterface: React.FC<AICommandInterfaceProps> = ({
   const [command, setCommand] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [suggestions] = useState([
-    'create a quiz using sentences that contain "i love"',
-    'generate 5 beginner questions about food',
-    'make an intermediate quiz about travel',
-    'create 10 advanced sentences about work',
-    'generate a quiz about family members'
+    'I want to learn useful Spanish sentences for travel',
+    'How do you say hello in Spanish?',
+    'Teach me basic Spanish greetings',
+    'I need Spanish phrases for ordering food',
+    'What are common Spanish expressions for daily conversation?',
+    'Help me learn Spanish for business meetings',
+    'Show me Spanish sentences about family and friends',
+    'I want to practice Spanish for shopping and restaurants'
   ]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -49,7 +52,7 @@ export const AICommandInterface: React.FC<AICommandInterfaceProps> = ({
       }
 
       if (result.success && result.quiz) {
-        onQuizGenerated(result.quiz);
+        onQuizGenerated(result.quiz, command.trim());
         setCommand('');
       } else {
         throw new Error(result.error || 'Failed to generate quiz');
@@ -69,7 +72,7 @@ export const AICommandInterface: React.FC<AICommandInterfaceProps> = ({
   return (
     <div className="bg-white rounded-lg shadow-md p-6 mb-6">
       <h3 className="text-xl font-semibold mb-4 text-gray-800">
-        🤖 AI Quiz Generator
+        🤖 AI Spanish Learning Assistant
       </h3>
       
       <form onSubmit={handleSubmit} className="mb-4">
@@ -78,7 +81,7 @@ export const AICommandInterface: React.FC<AICommandInterfaceProps> = ({
             type="text"
             value={command}
             onChange={(e) => setCommand(e.target.value)}
-            placeholder="Type your command here... (e.g., 'create a quiz about food')"
+            placeholder="Ask for Spanish learning content... (e.g., 'I want to learn travel phrases')"
             className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             disabled={isLoading}
           />
@@ -90,10 +93,10 @@ export const AICommandInterface: React.FC<AICommandInterfaceProps> = ({
             {isLoading ? (
               <>
                 <LoadingSpinner size="sm" />
-                Generating...
+                Learning...
               </>
             ) : (
-              'Generate'
+              'Learn Spanish'
             )}
           </Button>
         </div>
@@ -116,13 +119,17 @@ export const AICommandInterface: React.FC<AICommandInterfaceProps> = ({
       </div>
 
       <div className="text-xs text-gray-500">
-        <p>💡 <strong>Tips:</strong></p>
+        <p>💡 <strong>How to ask for Spanish learning content:</strong></p>
         <ul className="list-disc list-inside mt-1 space-y-1">
-          <li>Specify difficulty: "beginner", "intermediate", or "advanced"</li>
-          <li>Include topics in quotes: "food", "travel", "family"</li>
-          <li>Mention number of questions: "5 questions", "10 sentences"</li>
-          <li>Use natural language: "create a quiz about..."</li>
+          <li>Ask for specific topics: "dinner phrases", "travel", "business", "shopping"</li>
+          <li>Request practical phrases: "phrases to use at dinner", "how to order food"</li>
+          <li>Ask for situations: "at the airport", "in a restaurant", "at work"</li>
+          <li>Request translations: "how do you say hello", "what is thank you in Spanish"</li>
+          <li>Ask for general content: "useful phrases", "common expressions", "basic Spanish"</li>
         </ul>
+        <p className="mt-2 text-blue-600">
+          ✨ The AI will intelligently interpret your request and generate relevant Spanish sentences for you to practice!
+        </p>
       </div>
     </div>
   );

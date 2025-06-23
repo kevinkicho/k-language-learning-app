@@ -4,6 +4,15 @@ import { googleServices } from '@/lib/google-services';
 import { promises as fs } from 'fs';
 import path from 'path';
 
+// Function to sanitize filename by replacing invalid characters
+function sanitizeFilename(text: string): string {
+  return text
+    .replace(/[<>:"/\\|?*]/g, '_') // Replace invalid filename characters with underscore
+    .replace(/\s+/g, '_') // Replace spaces with underscore
+    .replace(/__+/g, '_') // Replace multiple underscores with single underscore
+    .trim();
+}
+
 export async function POST(request: NextRequest) {
   try {
     const { text, language = 'es-ES' } = await request.json();
@@ -46,8 +55,12 @@ export async function POST(request: NextRequest) {
     // Generate new audio using the correct method
     console.log(`Generating audio for word: "${text}"`);
     
+    // Sanitize the filename to prevent path issues
+    const sanitizedText = sanitizeFilename(text);
+    const filename = `word_${sanitizedText}`;
+    
     // Use the googleServices.generateAudio method that saves to file
-    const audioPath = await googleServices.generateAudio(text, `word_${text}`);
+    const audioPath = await googleServices.generateAudio(text, filename);
     
     // Read the generated file
     const filePath = path.join(process.cwd(), 'public', audioPath);

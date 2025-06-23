@@ -164,11 +164,11 @@ export class CachedAPI {
     return data;
   }
   
-  static async addSentence(englishSentence: string): Promise<Sentence> {
+  static async addSentence(englishSentence: string, quizGroup?: string): Promise<Sentence> {
     const response = await fetch('/api/sentences', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ englishSentence }),
+      body: JSON.stringify({ englishSentence, quizGroup }),
     });
     
     if (!response.ok) {

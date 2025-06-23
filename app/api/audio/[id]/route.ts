@@ -4,10 +4,11 @@ import fs from 'fs/promises';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const audioPath = path.join(process.cwd(), 'public', 'audio', `${params.id}.mp3`);
+    const { id } = await params;
+    const audioPath = path.join(process.cwd(), 'public', 'audio', `${id}.mp3`);
     
     try {
       const audioBuffer = await fs.readFile(audioPath);
