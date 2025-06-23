@@ -100,7 +100,7 @@ Please provide a JSON response with ${languageName} learning content in this exa
     {
       "english": "English sentence or phrase (optional - only if you want to provide English)",
       "spanish": "${languageName} sentence or phrase (required)",
-      "notes": "Brief explanation or usage notes (optional)"
+      "notes": "${isSpanish ? 'Brief explanation in Spanish or English' : 'Brief explanation or usage notes'} (optional)"
     }
   ],
   "title": "Brief title describing the content",
@@ -116,13 +116,15 @@ REQUIREMENTS:
 - Include accurate translations and helpful notes when relevant
 - Match the user's specific request context
 - Make sentences natural and conversational, not textbook-like
-- ${isSpanish ? 'For Spanish, use natural expressions and avoid overly formal language unless specifically requested.' : ''}
+- ${isSpanish ? 'For Spanish, use natural expressions and avoid overly formal language unless specifically requested. Provide notes in Spanish when possible for better learning experience.' : ''}
 
 EXAMPLES:
 - For "dinner" or "restaurant": ordering food, asking for the menu, paying the bill
 - For "travel": airport phrases, hotel check-in, asking directions
 - For "business": meetings, phone calls, presentations, networking
 - For "daily life": greetings, shopping, transportation, social situations
+
+${isSpanish ? 'IMPORTANT: When providing notes, try to use Spanish explanations when possible. For example: "Frases útiles para viajar" instead of "Useful travel phrases".' : ''}
 
 Respond only with the JSON object, no additional text.`;
   }
@@ -236,25 +238,15 @@ Respond only with the JSON object, no additional text.`;
           id: `q_translation_${index + 1}`,
           question: `Translate: ${sentence.english}`,
           correctAnswer: sentence.spanish,
-          options: [
-            sentence.spanish,
-            'Incorrecto',
-            'No sé',
-            'Tal vez'
-          ],
+          options: this.getLanguageSpecificOptions(language, sentence.spanish),
           type: 'translation' as const
         };
       } else {
         return {
           id: `q_comprehension_${index + 1}`,
           question: `What does this ${languageName} phrase mean: "${sentence.spanish}"?`,
-          correctAnswer: sentence.notes || 'Practice this phrase',
-          options: [
-            sentence.notes || 'Practice this phrase',
-            'I don\'t know',
-            'Maybe',
-            'Incorrect'
-          ],
+          correctAnswer: sentence.notes || this.getDefaultCorrectAnswer(language),
+          options: this.getLanguageSpecificOptions(language, sentence.notes || this.getDefaultCorrectAnswer(language)),
           type: 'multiple-choice' as const
         };
       }
@@ -269,6 +261,79 @@ Respond only with the JSON object, no additional text.`;
         questions: questions
       }
     };
+  }
+
+  /**
+   * Gets language-specific answer options
+   */
+  private getLanguageSpecificOptions(language?: string, correctAnswer?: string): string[] {
+    const isSpanish = language === 'es' || language === 'es-ES';
+    
+    if (isSpanish) {
+      return [
+        correctAnswer || 'Práctica esta frase',
+        'Incorrecto',
+        'No sé',
+        'Tal vez'
+      ];
+    } else if (language === 'fr') {
+      return [
+        correctAnswer || 'Pratiquez cette phrase',
+        'Incorrect',
+        'Je ne sais pas',
+        'Peut-être'
+      ];
+    } else if (language === 'de') {
+      return [
+        correctAnswer || 'Üben Sie diesen Satz',
+        'Falsch',
+        'Ich weiß nicht',
+        'Vielleicht'
+      ];
+    } else if (language === 'it') {
+      return [
+        correctAnswer || 'Pratica questa frase',
+        'Incorretto',
+        'Non lo so',
+        'Forse'
+      ];
+    } else if (language === 'pt') {
+      return [
+        correctAnswer || 'Pratique esta frase',
+        'Incorreto',
+        'Não sei',
+        'Talvez'
+      ];
+    } else {
+      // Default to English
+      return [
+        correctAnswer || 'Practice this phrase',
+        'Incorrect',
+        'I don\'t know',
+        'Maybe'
+      ];
+    }
+  }
+
+  /**
+   * Gets default correct answer based on language
+   */
+  private getDefaultCorrectAnswer(language?: string): string {
+    const isSpanish = language === 'es' || language === 'es-ES';
+    
+    if (isSpanish) {
+      return 'Práctica esta frase';
+    } else if (language === 'fr') {
+      return 'Pratiquez cette phrase';
+    } else if (language === 'de') {
+      return 'Üben Sie diesen Satz';
+    } else if (language === 'it') {
+      return 'Pratica questa frase';
+    } else if (language === 'pt') {
+      return 'Pratique esta frase';
+    } else {
+      return 'Practice this phrase';
+    }
   }
 
   /**
