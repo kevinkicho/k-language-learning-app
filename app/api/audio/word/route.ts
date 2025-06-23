@@ -55,12 +55,8 @@ export async function POST(request: NextRequest) {
     // Generate new audio using the correct method
     console.log(`Generating audio for word: "${text}"`);
     
-    // Sanitize the filename to prevent path issues
-    const sanitizedText = sanitizeFilename(text);
-    const filename = `word_${sanitizedText}`;
-    
-    // Use the googleServices.generateAudio method that saves to file
-    const audioPath = await googleServices.generateAudio(text, filename);
+    // Use the googleServices.generateAudio method with standardized naming
+    const audioPath = await googleServices.generateAudio(text, text, language);
     
     // Read the generated file
     const filePath = path.join(process.cwd(), 'public', audioPath);

@@ -164,23 +164,30 @@ export class CachedAPI {
     return data;
   }
   
-  static async addSentence(englishSentence: string, quizGroup?: string): Promise<Sentence> {
-    const response = await fetch('/api/sentences', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ englishSentence, quizGroup }),
-    });
-    
-    if (!response.ok) {
-      throw new Error('Failed to add sentence');
+  static async addSentence(englishSentence: string, quizGroup?: string, languageCode: string = 'es'): Promise<Sentence> {
+    try {
+      const response = await fetch('/api/sentences', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ englishSentence, quizGroup, languageCode }),
+      });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`Add sentence failed with status ${response.status}:`, errorText);
+        throw new Error(`Failed to add sentence: ${response.status} ${response.statusText}`);
+      }
+      
+      const sentence = await response.json();
+      
+      // Invalidate sentences cache
+      removeCache('sentences');
+      
+      return sentence;
+    } catch (error) {
+      console.error('Error in addSentence:', error);
+      throw error;
     }
-    
-    const sentence = await response.json();
-    
-    // Invalidate sentences cache
-    removeCache('sentences');
-    
-    return sentence;
   }
   
   static async deleteSentence(id: string): Promise<void> {

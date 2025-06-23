@@ -1,0 +1,1 @@
+ALTER TABLE `sentences` ADD `language_code` text DEFAULT 'es' NOT NULL;

@@ -164,7 +164,7 @@ export default function HomePage() {
       
       for (const s of quiz.sentences) {
         try {
-          const added = await CachedAPI.addSentence(s.english, groupId);
+          const added = await CachedAPI.addSentence(s.english, groupId, 'es');
           if (added && !existingSentenceIds.has(added.id)) {
             // Only add if it's truly new (not already in our current list)
             newSentences.push(added);

@@ -17,7 +17,7 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
-    const { englishSentence, quizGroup } = await request.json();
+    const { englishSentence, quizGroup, languageCode = 'es' } = await request.json();
     
     if (!englishSentence || typeof englishSentence !== 'string') {
       return NextResponse.json(
@@ -50,22 +50,24 @@ export async function POST(request: NextRequest) {
         await databaseDrizzle.saveTranslation(englishSentence, translation);
       } catch (googleError) {
         console.error('Translation error:', googleError);
-        // Continue without translation
+        // Continue without translation - the sentence will still be added
+        console.log('Continuing without translation due to Google service error');
       }
     }
     
-    // First, add the sentence to database with quizGroup
-    const sentence = await databaseDrizzle.addSentence(englishSentence, translation, quizGroup);
+    // First, add the sentence to database with quizGroup and languageCode
+    const sentence = await databaseDrizzle.addSentence(englishSentence, translation, quizGroup, languageCode);
     
     // Always try to generate audio if we have a translation
     if (translation) {
       try {
-        audioPath = await googleServices.generateAudio(translation, sentence.id);
+        audioPath = await googleServices.generateAudio(translation, englishSentence, languageCode);
         await databaseDrizzle.updateSentence(sentence.id, translation, audioPath);
         console.log(`Audio generated and saved for sentence: ${sentence.id}, path: ${audioPath}`);
       } catch (audioError) {
         console.error('Audio generation error:', audioError);
-        // Continue without audio
+        // Continue without audio - the sentence will still be added
+        console.log('Continuing without audio due to Google service error');
       }
     } else {
       console.warn('No translation available, skipping audio generation.');
@@ -79,8 +81,15 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(finalSentence, { status: 201 });
   } catch (error) {
     console.error('Error adding sentence:', error);
+    
+    // Provide more specific error information
+    let errorMessage = 'Failed to add sentence';
+    if (error instanceof Error) {
+      errorMessage = error.message;
+    }
+    
     return NextResponse.json(
-      { error: 'Failed to add sentence' },
+      { error: errorMessage },
       { status: 500 }
     );
   }
