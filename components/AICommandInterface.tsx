@@ -6,7 +6,7 @@ import LoadingSpinner from './ui/LoadingSpinner';
 import { QuizGenerationRequest, QuizGenerationResponse, Language } from '@/lib/types';
 
 interface AICommandInterfaceProps {
-  onQuizGenerated: (quiz: QuizGenerationResponse['quiz'], userCommand?: string) => void;
+  onQuizGenerated: (quiz: QuizGenerationResponse['quiz'], userCommand?: string, language?: Language) => void;
   onError: (error: string) => void;
 }
 
@@ -15,7 +15,7 @@ export const AICommandInterface: React.FC<AICommandInterfaceProps> = ({
   onError
 }) => {
   const [command, setCommand] = useState('');
-  const [selectedLanguage, setSelectedLanguage] = useState<Language>('es-ES');
+  const [selectedLanguage, setSelectedLanguage] = useState<Language>('es-es');
   const [isLoading, setIsLoading] = useState(false);
   const [suggestions] = useState([
     'I want to learn useful Spanish sentences for travel',
@@ -29,13 +29,16 @@ export const AICommandInterface: React.FC<AICommandInterfaceProps> = ({
   ]);
 
   const languages: { value: Language; label: string }[] = [
-    { value: 'es-ES', label: '🇪🇸 Spanish (Spain)' },
+    { value: 'es-es', label: '🇪🇸 Spanish (Spain)' },
     { value: 'es', label: '🇲🇽 Spanish (Latin America)' },
     { value: 'en', label: '🇺🇸 English' },
-    { value: 'fr', label: '🇫🇷 French' },
-    { value: 'de', label: '🇩🇪 German' },
-    { value: 'it', label: '🇮🇹 Italian' },
-    { value: 'pt', label: '🇵🇹 Portuguese' }
+    { value: 'fr-fr', label: '🇫🇷 French (France)' },
+    { value: 'fr', label: '🇨🇦 French (Canada)' },
+    { value: 'de-de', label: '🇩🇪 German (Germany)' },
+    { value: 'de', label: '🇦🇹 German (Austria)' },
+    { value: 'it-it', label: '🇮🇹 Italian (Italy)' },
+    { value: 'pt-pt', label: '🇵🇹 Portuguese (Portugal)' },
+    { value: 'pt', label: '🇧🇷 Portuguese (Brazil)' }
   ];
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -64,7 +67,7 @@ export const AICommandInterface: React.FC<AICommandInterfaceProps> = ({
       }
 
       if (result.success && result.quiz) {
-        onQuizGenerated(result.quiz, command.trim());
+        onQuizGenerated(result.quiz, command.trim(), selectedLanguage);
         setCommand('');
       } else {
         throw new Error(result.error || 'Failed to generate quiz');
@@ -108,7 +111,7 @@ export const AICommandInterface: React.FC<AICommandInterfaceProps> = ({
             type="text"
             value={command}
             onChange={(e) => setCommand(e.target.value)}
-            placeholder={`Ask for ${selectedLanguage === 'es-ES' ? 'Spanish' : selectedLanguage === 'es' ? 'Spanish (Latin America)' : 'language'} learning content... (e.g., 'I want to learn travel phrases')`}
+            placeholder={`Ask for ${selectedLanguage === 'es-es' ? 'Spanish' : selectedLanguage === 'es' ? 'Spanish (Latin America)' : selectedLanguage === 'fr-fr' ? 'French' : selectedLanguage === 'fr' ? 'French (Canada)' : selectedLanguage === 'de-de' ? 'German' : selectedLanguage === 'de' ? 'German (Austria)' : selectedLanguage === 'it-it' ? 'Italian' : selectedLanguage === 'pt-pt' ? 'Portuguese' : selectedLanguage === 'pt' ? 'Portuguese (Brazil)' : 'language'} learning content... (e.g., 'I want to learn travel phrases')`}
             className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             disabled={isLoading}
           />
@@ -123,7 +126,7 @@ export const AICommandInterface: React.FC<AICommandInterfaceProps> = ({
                 Learning...
               </>
             ) : (
-              `Learn ${selectedLanguage === 'es-ES' ? 'Spanish' : selectedLanguage === 'es' ? 'Spanish (LA)' : 'Language'}`
+              `Learn ${selectedLanguage === 'es-es' ? 'Spanish' : selectedLanguage === 'es' ? 'Spanish (LA)' : selectedLanguage === 'fr-fr' ? 'French' : selectedLanguage === 'fr' ? 'French (CA)' : selectedLanguage === 'de-de' ? 'German' : selectedLanguage === 'de' ? 'German (AT)' : selectedLanguage === 'it-it' ? 'Italian' : selectedLanguage === 'pt-pt' ? 'Portuguese' : selectedLanguage === 'pt' ? 'Portuguese (BR)' : 'Language'}`
             )}
           </Button>
         </div>
@@ -146,16 +149,16 @@ export const AICommandInterface: React.FC<AICommandInterfaceProps> = ({
       </div>
 
       <div className="text-xs text-gray-500">
-        <p>💡 <strong>How to ask for {selectedLanguage === 'es-ES' ? 'Spanish' : selectedLanguage === 'es' ? 'Spanish (Latin America)' : 'language'} learning content:</strong></p>
+        <p>💡 <strong>How to ask for {selectedLanguage === 'es-es' ? 'Spanish' : selectedLanguage === 'es' ? 'Spanish (Latin America)' : selectedLanguage === 'fr-fr' ? 'French' : selectedLanguage === 'fr' ? 'French (Canada)' : selectedLanguage === 'de-de' ? 'German' : selectedLanguage === 'de' ? 'German (Austria)' : selectedLanguage === 'it-it' ? 'Italian' : selectedLanguage === 'pt-pt' ? 'Portuguese' : selectedLanguage === 'pt' ? 'Portuguese (Brazil)' : 'language'} learning content:</strong></p>
         <ul className="list-disc list-inside mt-1 space-y-1">
           <li>Ask for specific topics: "dinner phrases", "travel", "business", "shopping"</li>
           <li>Request practical phrases: "phrases to use at dinner", "how to order food"</li>
           <li>Ask for situations: "at the airport", "in a restaurant", "at work"</li>
-          <li>Request translations: "how do you say hello", "what is thank you in {selectedLanguage === 'es-ES' ? 'Spanish' : selectedLanguage === 'es' ? 'Spanish' : 'this language'}"</li>
-          <li>Ask for general content: "useful phrases", "common expressions", "basic {selectedLanguage === 'es-ES' ? 'Spanish' : selectedLanguage === 'es' ? 'Spanish' : 'language'}"</li>
+          <li>Request translations: "how do you say hello", "what is thank you in {selectedLanguage === 'es-es' ? 'Spanish' : selectedLanguage === 'es' ? 'Spanish' : selectedLanguage === 'fr-fr' ? 'French' : selectedLanguage === 'fr' ? 'French' : selectedLanguage === 'de-de' ? 'German' : selectedLanguage === 'de' ? 'German' : selectedLanguage === 'it-it' ? 'Italian' : selectedLanguage === 'pt-pt' ? 'Portuguese' : selectedLanguage === 'pt' ? 'Portuguese' : 'this language'}"</li>
+          <li>Ask for general content: "useful phrases", "common expressions", "basic {selectedLanguage === 'es-es' ? 'Spanish' : selectedLanguage === 'es' ? 'Spanish' : selectedLanguage === 'fr-fr' ? 'French' : selectedLanguage === 'fr' ? 'French' : selectedLanguage === 'de-de' ? 'German' : selectedLanguage === 'de' ? 'German' : selectedLanguage === 'it-it' ? 'Italian' : selectedLanguage === 'pt-pt' ? 'Portuguese' : selectedLanguage === 'pt' ? 'Portuguese' : 'language'}"</li>
         </ul>
         <p className="mt-2 text-blue-600">
-          ✨ The AI will intelligently interpret your request and generate relevant {selectedLanguage === 'es-ES' ? 'Spanish' : selectedLanguage === 'es' ? 'Spanish (Latin America)' : 'language'} sentences for you to practice!
+          ✨ The AI will intelligently interpret your request and generate relevant {selectedLanguage === 'es-es' ? 'Spanish' : selectedLanguage === 'es' ? 'Spanish (Latin America)' : selectedLanguage === 'fr-fr' ? 'French' : selectedLanguage === 'fr' ? 'French (Canada)' : selectedLanguage === 'de-de' ? 'German' : selectedLanguage === 'de' ? 'German (Austria)' : selectedLanguage === 'it-it' ? 'Italian' : selectedLanguage === 'pt-pt' ? 'Portuguese' : selectedLanguage === 'pt' ? 'Portuguese (Brazil)' : 'language'} sentences for you to practice!
         </p>
       </div>
     </div>

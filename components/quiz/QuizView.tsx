@@ -66,10 +66,15 @@ const QuizView: React.FC<QuizViewProps> = ({
         {shuffledWords.map((word) => (
           <button
             key={word.id}
-            className={`btn btn-outline-primary me-2 mb-2 ${
-              selectedWords.some(sw => sw.id === word.id) ? 'btn-primary' : ''
-            }`}
-            onClick={() => onWordClick(word)}
+            className={`btn ${word.isSelected ? 'btn-primary' : 'btn-outline-primary'}`}
+            onClick={async () => {
+              try {
+                await onWordClick(word);
+              } catch (error) {
+                console.error("Error during word click handling:", error);
+                // Optionally surface this error to the user
+              }
+            }}
             disabled={selectedWords.some(sw => sw.id === word.id)}
           >
             {word.word}

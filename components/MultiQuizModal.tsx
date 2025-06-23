@@ -4,7 +4,7 @@ import { useEffect, useReducer, useState, useCallback, useRef } from 'react';
 import { Sentence } from '@/lib/types';
 import { CachedAPI } from '@/lib/cache-utils';
 import { useAudioPlayer } from '@/hooks/useAudioPlayer';
-import { quizReducer, initialQuizState } from './quiz/useMultiQuiz';
+import { quizReducer, initialQuizState, WordItem } from './quiz/useMultiQuiz';
 import { QuizActionType } from './quiz/actions';
 import FinalReview from './quiz/FinalReview';
 import QuizView from './quiz/QuizView';
@@ -30,22 +30,18 @@ export default function MultiQuizModal({ sentences, isRandom, onClose }: MultiQu
 
   const currentSentence = state.sentences[state.currentSentenceIndex];
 
-  const handleWordClick = useCallback(async (word: any) => {
+  const handleWordClick = async (word: WordItem) => {
+    console.log(`🖱️ Word clicked: ${word.word}`);
     try {
-      console.log(`🖱️ Word clicked: ${word.word}`);
-      // Play audio first
       console.log(`🎵 Calling playWordAudio for: ${word.word}`);
-      await playWordAudio(word.word);
-      console.log(`✅ Audio played successfully for: ${word.word}`);
-      // Then select the word
-      console.log(`📝 Dispatching SELECT_WORD for: ${word.word}`);
-      dispatch({ type: QuizActionType.SELECT_WORD, payload: word });
+      await playWordAudio(word.word, currentSentence?.languageCode || 'es-es');
+      console.log(`✅ playWordAudio succeeded for: ${word.word}`);
     } catch (error) {
-      console.error('❌ Error in handleWordClick:', error);
-      // Still select the word even if audio fails
-      dispatch({ type: QuizActionType.SELECT_WORD, payload: word });
+      console.error(`🔴 Failed to play audio for "${word.word}":`, error);
     }
-  }, [playWordAudio]);
+    
+    dispatch({ type: QuizActionType.SELECT_WORD, payload: word });
+  };
 
   const checkAnswer = useCallback(() => {
     const spanishSentence = currentSentence.spanishTranslation || currentSentence.englishSentence;

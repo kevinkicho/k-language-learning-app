@@ -15,7 +15,9 @@ function sanitizeFilename(text: string): string {
 
 export async function POST(request: NextRequest) {
   try {
-    const { text, language = 'es-ES' } = await request.json();
+    const { text, language = 'es-es' } = await request.json();
+    
+    console.log(`[WORD AUDIO API] Requested word: "${text}", language: "${language}"`);
     
     if (!text || typeof text !== 'string') {
       return NextResponse.json(

@@ -23,7 +23,7 @@ export class DatabaseDrizzle {
     return result[0] || null;
   }
 
-  async addSentence(englishSentence: string, spanishTranslation?: string, quizGroup?: string, languageCode: string = 'es'): Promise<Sentence> {
+  async addSentence(englishSentence: string, spanishTranslation?: string, quizGroup?: string, languageCode: string = 'es-es'): Promise<Sentence> {
     // Check if sentence already exists
     const existingSentence = await this.findSentenceByEnglishText(englishSentence);
     if (existingSentence) {

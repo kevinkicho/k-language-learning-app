@@ -13,6 +13,34 @@ interface SentenceListProps {
   isPending: boolean;
 }
 
+// Helper function to get language display name
+const getLanguageDisplayName = (languageCode: string): string => {
+  switch (languageCode) {
+    case 'es-es':
+      return '🇪🇸 ES';
+    case 'es':
+      return '🇲🇽 ES-LA';
+    case 'en':
+      return '🇺🇸 EN';
+    case 'fr-fr':
+      return '🇫🇷 FR';
+    case 'fr':
+      return '🇨🇦 FR-CA';
+    case 'de-de':
+      return '🇩🇪 DE';
+    case 'de':
+      return '🇦🇹 DE-AT';
+    case 'it-it':
+      return '🇮🇹 IT';
+    case 'pt-pt':
+      return '🇵🇹 PT';
+    case 'pt':
+      return '🇧🇷 PT-BR';
+    default:
+      return '🌐 ' + languageCode.toUpperCase();
+  }
+};
+
 export default function SentenceList({ sentences, selectedIds, onDelete, onStartQuiz, onToggleSelection, isPending }: SentenceListProps) {
   if (sentences.length === 0) {
     return (
@@ -38,9 +66,14 @@ export default function SentenceList({ sentences, selectedIds, onDelete, onStart
                 id={`sentence-${sentence.id}`}
             />
             <label className="form-check-label" htmlFor={`sentence-${sentence.id}`}>
+              <div className="d-flex align-items-center gap-2 mb-1">
+                <span className="badge bg-secondary fs-6">
+                  {getLanguageDisplayName(sentence.languageCode || 'es-es')}
+                </span>
+              </div>
               <strong>{sentence.spanishTranslation}</strong>
               <br />
-              <small>{sentence.englishSentence}</small>
+              <small className="text-muted">{sentence.englishSentence}</small>
             </label>
           </div>
           <div className="d-flex gap-2">

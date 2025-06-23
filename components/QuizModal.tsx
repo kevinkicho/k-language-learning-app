@@ -105,7 +105,7 @@ export default function QuizModal({ sentence, onClose }: QuizModalProps) {
       // Play audio for the word first
       try {
         console.log(`🎵 QuizModal: Calling playWordAudio for: ${word.word}`);
-        await playWordAudio(word.word);
+        await playWordAudio(word.word, sentence.languageCode || 'es-es');
         console.log(`✅ QuizModal: Audio played successfully for: ${word.word}`);
       } catch (error) {
         console.error('❌ QuizModal: Error playing word audio:', error);

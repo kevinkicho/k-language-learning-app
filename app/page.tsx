@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useTransition, useEffect } from 'react';
-import { Sentence, QuizGenerationResponse } from '@/lib/types';
+import { Sentence, QuizGenerationResponse, Language } from '@/lib/types';
 import { CachedAPI } from '@/lib/cache-utils';
 import SentenceInput from '@/components/SentenceInput';
 import SentenceList from '@/components/SentenceList';
@@ -20,6 +20,22 @@ export default function HomePage() {
   const [aiError, setAiError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'all' | 'groups'>('all');
   const [currentQuizGroup, setCurrentQuizGroup] = useState<string | null>(null);
+  const [languageFilter, setLanguageFilter] = useState<Language | 'all'>('all');
+
+  // Language options for filter
+  const languageOptions = [
+    { value: 'all' as const, label: '🌐 All Languages' },
+    { value: 'es-es' as const, label: '🇪🇸 Spanish (Spain)' },
+    { value: 'es' as const, label: '🇲🇽 Spanish (Latin America)' },
+    { value: 'en' as const, label: '🇺🇸 English' },
+    { value: 'fr-fr' as const, label: '🇫🇷 French (France)' },
+    { value: 'fr' as const, label: '🇨🇦 French (Canada)' },
+    { value: 'de-de' as const, label: '🇩🇪 German (Germany)' },
+    { value: 'de' as const, label: '🇦🇹 German (Austria)' },
+    { value: 'it-it' as const, label: '🇮🇹 Italian (Italy)' },
+    { value: 'pt-pt' as const, label: '🇵🇹 Portuguese (Portugal)' },
+    { value: 'pt' as const, label: '🇧🇷 Portuguese (Brazil)' }
+  ];
 
   // Get unique quiz groups from sentences
   const quizGroups = Array.from(new Set(sentences
@@ -33,6 +49,19 @@ export default function HomePage() {
     return acc;
   }, {} as Record<string, Sentence[]>);
 
+  // Get filtered quiz groups (only groups with sentences in selected language)
+  const getFilteredQuizGroups = () => {
+    if (languageFilter === 'all') {
+      return quizGroups;
+    }
+    return quizGroups.filter(group => {
+      const groupSentences = groupedSentences[group];
+      return groupSentences.some(sentence => sentence.languageCode === languageFilter);
+    });
+  };
+
+  const filteredQuizGroups = getFilteredQuizGroups();
+
   // Helper function to get display name for a group (without timestamp)
   const getGroupDisplayName = (groupId: string) => {
     const parts = groupId.split('_');
@@ -43,27 +72,64 @@ export default function HomePage() {
     return groupId;
   };
 
+  // Filter sentences by language
+  const filterSentencesByLanguage = (sentencesToFilter: Sentence[]) => {
+    if (languageFilter === 'all') {
+      return sentencesToFilter;
+    }
+    return sentencesToFilter.filter(sentence => sentence.languageCode === languageFilter);
+  };
+
   // Get sentences for current view
   const getCurrentSentences = () => {
+    let currentSentences;
     if (activeTab === 'groups' && currentQuizGroup) {
-      return groupedSentences[currentQuizGroup] || [];
+      currentSentences = groupedSentences[currentQuizGroup] || [];
+    } else {
+      currentSentences = sentences;
     }
-    return sentences;
+    
+    // Apply language filter
+    currentSentences = filterSentencesByLanguage(currentSentences);
+    
+    // Sort by language code, then by creation date (newest first)
+    return currentSentences.sort((a, b) => {
+      // First sort by language code
+      const langA = a.languageCode || 'es-es';
+      const langB = b.languageCode || 'es-es';
+      if (langA !== langB) {
+        return langA.localeCompare(langB);
+      }
+      // Then sort by creation date (newest first)
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    });
   };
 
   const currentSentences = getCurrentSentences();
+
+  // Get filtered counts for tabs
+  const getFilteredCounts = () => {
+    const allFiltered = filterSentencesByLanguage(sentences);
+    
+    return {
+      all: allFiltered.length,
+      groups: filteredQuizGroups.length
+    };
+  };
+
+  const filteredCounts = getFilteredCounts();
 
   // Tab configuration
   const tabs: TabConfig[] = [
     {
       id: 'all',
       label: 'All Sentences',
-      count: sentences.length
+      count: filteredCounts.all
     },
     {
       id: 'groups',
       label: 'Quiz Groups',
-      count: quizGroups.length
+      count: filteredCounts.groups
     }
   ];
 
@@ -130,17 +196,21 @@ export default function HomePage() {
     setSelectedSentences([]);
   };
 
-  const handleAIQuizGenerated = async (quiz: QuizGenerationResponse['quiz'], userCommand?: string) => {
+  const handleAIQuizGenerated = async (
+    quiz: QuizGenerationResponse['quiz'],
+    userCommand?: string,
+    language?: Language
+  ) => {
     if (quiz) {
-      // Generate a descriptive group name based on user command
-      let groupName = 'Spanish Quiz';
+      // Generate a descriptive group name based on user command and language
+      let groupName = 'Generated Quiz';
       
       if (userCommand) {
         // Clean up the user command to create a readable group name
         const cleanCommand = userCommand
           .toLowerCase()
           .replace(/^(i want to learn|teach me|show me|help me learn|i need|what are|how do you say)/, '')
-          .replace(/^(spanish|in spanish|for spanish)/, '')
+          .replace(/^(spanish|in spanish|for spanish|french|in french|for french|german|in german|for german|italian|in italian|for italian|portuguese|in portuguese|for portuguese)/, '')
           .replace(/^(useful |basic |common |essential )/, '')
           .replace(/[?.,!]/g, '')
           .trim();
@@ -164,9 +234,14 @@ export default function HomePage() {
       
       for (const s of quiz.sentences) {
         try {
-          const added = await CachedAPI.addSentence(s.english, groupId, 'es');
+          // Pass the AI's target language translation directly
+          const added = await CachedAPI.addSentence(
+            s.english, 
+            groupId, 
+            language || 'es-es', 
+            s.spanish // This is the fix
+          );
           if (added && !existingSentenceIds.has(added.id)) {
-            // Only add if it's truly new (not already in our current list)
             newSentences.push(added);
           }
         } catch (err) {
@@ -185,7 +260,7 @@ export default function HomePage() {
         setCurrentQuizGroup(groupId);
       } else {
         // All sentences already existed
-        setAiError('All generated sentences already exist in your list.');
+        setAiError('All generated sentences already exist in your list or could not be added.');
       }
     }
   };
@@ -196,13 +271,32 @@ export default function HomePage() {
 
   const handleTabChange = (tabId: string) => {
     setActiveTab(tabId as 'all' | 'groups');
-    if (tabId === 'groups' && quizGroups.length > 0 && !currentQuizGroup) {
-      setCurrentQuizGroup(quizGroups[0]);
+    if (tabId === 'groups' && filteredQuizGroups.length > 0 && !currentQuizGroup) {
+      setCurrentQuizGroup(filteredQuizGroups[0]);
     }
   };
 
   const handleGroupChange = (groupId: string) => {
     setCurrentQuizGroup(groupId);
+  };
+
+  const handleLanguageFilterChange = (newFilter: Language | 'all') => {
+    setLanguageFilter(newFilter);
+    // Update quiz group selection when switching languages
+    if (activeTab === 'groups') {
+      const newFilteredGroups = newFilter === 'all' ? quizGroups : quizGroups.filter(group => {
+        const groupSentences = groupedSentences[group];
+        return groupSentences.some(sentence => sentence.languageCode === newFilter);
+      });
+      
+      if (newFilteredGroups.length > 0) {
+        // Select the first available group in the new filter
+        setCurrentQuizGroup(newFilteredGroups[0]);
+      } else {
+        // No groups available in this language, clear selection
+        setCurrentQuizGroup(null);
+      }
+    }
   };
 
   return (
@@ -243,6 +337,11 @@ export default function HomePage() {
           <div className="card">
             <div className="card-body">
                 <h2 className="card-title">Quick Actions</h2>
+                {languageFilter !== 'all' && (
+                  <div className="alert alert-info alert-sm mb-3">
+                    <small>Filtered by: {languageOptions.find(opt => opt.value === languageFilter)?.label}</small>
+                  </div>
+                )}
                 <div className="d-grid gap-2">
                     <button className="btn btn-info" onClick={() => {
                         setSelectedSentences(currentSentences);
@@ -261,6 +360,38 @@ export default function HomePage() {
             <section>
                 <h2>Sentences</h2>
                 
+                {/* Language Filter */}
+                <div className="mb-3">
+                  <div className="d-flex align-items-center gap-2">
+                    <label className="form-label mb-0">Filter by Language:</label>
+                    <select 
+                      className="form-select"
+                      value={languageFilter}
+                      onChange={(e) => handleLanguageFilterChange(e.target.value as Language | 'all')}
+                      style={{ width: 'auto' }}
+                    >
+                      {languageOptions.map(option => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                    {languageFilter !== 'all' && (
+                      <button 
+                        className="btn btn-outline-secondary btn-sm"
+                        onClick={() => handleLanguageFilterChange('all')}
+                      >
+                        Clear Filter
+                      </button>
+                    )}
+                  </div>
+                  {languageFilter !== 'all' && (
+                    <small className="text-muted">
+                      Showing {currentSentences.length} of {sentences.length} sentences
+                    </small>
+                  )}
+                </div>
+                
                 {/* Tab Navigation */}
                 <TabNavigation 
                   tabs={tabs}
@@ -270,7 +401,7 @@ export default function HomePage() {
                 />
 
                 {/* Quiz Group Selector */}
-                {activeTab === 'groups' && quizGroups.length > 0 && (
+                {activeTab === 'groups' && filteredQuizGroups.length > 0 && (
                   <div className="mb-3">
                     <label className="form-label">Select Quiz Group:</label>
                     <select 
@@ -278,12 +409,27 @@ export default function HomePage() {
                       value={currentQuizGroup || ''}
                       onChange={(e) => handleGroupChange(e.target.value)}
                     >
-                      {quizGroups.map(group => (
-                        <option key={group} value={group}>
-                          {getGroupDisplayName(group)} ({groupedSentences[group].length} sentences)
-                        </option>
-                      ))}
+                      {filteredQuizGroups.map(group => {
+                        const groupSentences = groupedSentences[group];
+                        const filteredCount = languageFilter === 'all' 
+                          ? groupSentences.length 
+                          : groupSentences.filter(s => s.languageCode === languageFilter).length;
+                        return (
+                          <option key={group} value={group}>
+                            {getGroupDisplayName(group)} ({filteredCount} sentences)
+                          </option>
+                        );
+                      })}
                     </select>
+                  </div>
+                )}
+
+                {activeTab === 'groups' && filteredQuizGroups.length === 0 && (
+                  <div className="alert alert-info mb-3">
+                    <strong>No quiz groups found</strong> for the selected language. 
+                    {languageFilter !== 'all' && (
+                      <span> Try selecting "All Languages" or create new content in {languageOptions.find(opt => opt.value === languageFilter)?.label}.</span>
+                    )}
                   </div>
                 )}
 

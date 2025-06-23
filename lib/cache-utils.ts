@@ -164,12 +164,22 @@ export class CachedAPI {
     return data;
   }
   
-  static async addSentence(englishSentence: string, quizGroup?: string, languageCode: string = 'es'): Promise<Sentence> {
+  static async addSentence(
+    englishSentence: string, 
+    quizGroup?: string, 
+    languageCode: string = 'es-es',
+    spanishSentence?: string
+  ): Promise<Sentence> {
     try {
       const response = await fetch('/api/sentences', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ englishSentence, quizGroup, languageCode }),
+        body: JSON.stringify({ 
+          englishSentence, 
+          spanishSentence,
+          quizGroup, 
+          languageCode 
+        }),
       });
       
       if (!response.ok) {
@@ -180,7 +190,6 @@ export class CachedAPI {
       
       const sentence = await response.json();
       
-      // Invalidate sentences cache
       removeCache('sentences');
       
       return sentence;
@@ -206,7 +215,7 @@ export class CachedAPI {
   }
   
   // Word audio
-  static async getWordAudio(text: string, language: string = 'es-ES'): Promise<Blob> {
+  static async getWordAudio(text: string, language: string = 'es-es'): Promise<Blob> {
     const cacheKey = `audio_${text}_${language}`;
     
     const cached = getAudioCache(cacheKey);

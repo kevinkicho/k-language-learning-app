@@ -54,6 +54,40 @@ export default function DatabasePage() {
     }
   };
 
+  const regenerateSentenceAudio = async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      
+      const response = await fetch('/api/database/regenerate-sentence-audio', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      const result = await response.json();
+      
+      if (result.error) {
+        throw new Error(result.error);
+      }
+
+      console.log('Sentence audio regeneration result:', result);
+      alert(`Audio regeneration completed!\nTotal: ${result.total}\nSuccessful: ${result.successful}\nFailed: ${result.failed}`);
+      
+      // Reload the database data to show updated audio paths
+      await loadDatabaseData();
+    } catch (error) {
+      console.error('Error regenerating sentence audio:', error);
+      setError(error instanceof Error ? error.message : 'Failed to regenerate sentence audio');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleString();
   };
@@ -101,6 +135,11 @@ export default function DatabasePage() {
         <p className="lead">
           View and manage your language learning data.
         </p>
+        <div className="d-flex justify-content-center gap-2">
+          <Button onClick={regenerateSentenceAudio} variant="warning" disabled={isLoading}>
+            {isLoading ? 'Regenerating...' : 'Regenerate Sentence Audio'}
+          </Button>
+        </div>
       </header>
 
       <div className="card mb-4">

@@ -17,7 +17,7 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
-    const { englishSentence, quizGroup, languageCode = 'es' } = await request.json();
+    const { englishSentence, spanishSentence, quizGroup, languageCode = 'es-es' } = await request.json();
     
     if (!englishSentence || typeof englishSentence !== 'string') {
       return NextResponse.json(
@@ -26,54 +26,44 @@ export async function POST(request: NextRequest) {
       );
     }
     
-    // Check if sentence already exists first
     const existingSentence = await databaseDrizzle.findSentenceByEnglishText(englishSentence);
     if (existingSentence) {
-      console.log(`Sentence already exists: "${englishSentence}"`);
       return NextResponse.json(existingSentence, { status: 200 });
     }
     
-    // Check if translation is already cached
-    const cachedTranslation = await databaseDrizzle.getTranslation(englishSentence);
-    let translation: string | undefined;
+    let translation: string | undefined = spanishSentence;
     let audioPath: string | undefined;
-    let usedCachedTranslation = false;
-    
-    if (cachedTranslation) {
-      // Use cached translation
-      translation = cachedTranslation.spanishText;
-      usedCachedTranslation = true;
-    } else {
-      // Generate new translation and cache it
-      try {
-        translation = await googleServices.translateToSpanish(englishSentence);
-        await databaseDrizzle.saveTranslation(englishSentence, translation);
-      } catch (googleError) {
-        console.error('Translation error:', googleError);
-        // Continue without translation - the sentence will still be added
-        console.log('Continuing without translation due to Google service error');
+
+    // If a Spanish sentence is NOT provided by the AI, then try to translate
+    if (!translation) {
+      const cachedTranslation = await databaseDrizzle.getTranslation(englishSentence);
+      if (cachedTranslation) {
+        translation = cachedTranslation.spanishText;
+      } else {
+        try {
+          translation = await googleServices.translateToSpanish(englishSentence);
+          await databaseDrizzle.saveTranslation(englishSentence, translation);
+        } catch (googleError) {
+          console.error('Translation error:', googleError);
+          console.log('Continuing without translation due to Google service error');
+        }
       }
     }
     
-    // First, add the sentence to database with quizGroup and languageCode
     const sentence = await databaseDrizzle.addSentence(englishSentence, translation, quizGroup, languageCode);
     
-    // Always try to generate audio if we have a translation
     if (translation) {
       try {
         audioPath = await googleServices.generateAudio(translation, englishSentence, languageCode);
         await databaseDrizzle.updateSentence(sentence.id, translation, audioPath);
-        console.log(`Audio generated and saved for sentence: ${sentence.id}, path: ${audioPath}`);
       } catch (audioError) {
         console.error('Audio generation error:', audioError);
-        // Continue without audio - the sentence will still be added
         console.log('Continuing without audio due to Google service error');
       }
     } else {
       console.warn('No translation available, skipping audio generation.');
     }
     
-    // Return the final sentence
     const finalSentence = await databaseDrizzle.getSentenceById(sentence.id);
     if (!finalSentence?.audioPath) {
       console.warn(`No audioPath for sentence: ${sentence.id}. The play button will not appear.`);
@@ -82,7 +72,6 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('Error adding sentence:', error);
     
-    // Provide more specific error information
     let errorMessage = 'Failed to add sentence';
     if (error instanceof Error) {
       errorMessage = error.message;

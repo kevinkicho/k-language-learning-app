@@ -7,7 +7,7 @@ export const sentences = sqliteTable('sentences', {
   spanishTranslation: text('spanish_translation'),
   audioPath: text('audio_path'),
   quizGroup: text('quiz_group'),
-  languageCode: text('language_code').notNull().default('es'),
+  languageCode: text('language_code').notNull().default('es-es'),
   createdAt: text('created_at').notNull(),
   updatedAt: text('updated_at').notNull(),
 });

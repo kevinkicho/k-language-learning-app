@@ -96,7 +96,7 @@ export const isValidSentence = (sentence: string): boolean => {
 };
 
 export const isValidLanguage = (language: string): boolean => {
-  return ['en', 'es', 'es-ES'].includes(language);
+  return ['en', 'es', 'es-es', 'fr', 'fr-fr', 'de', 'de-de', 'it', 'it-it', 'pt', 'pt-pt'].includes(language);
 };
 
 // Error handling
