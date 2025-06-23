@@ -22,6 +22,44 @@ A modern, interactive Spanish language learning application built with Next.js 1
 - npm or yarn
 - Google Cloud account with Translation and Text-to-Speech APIs enabled
 
+### Environment Setup
+
+1. **Create environment files:**
+   ```bash
+   # Copy the example environment file
+   cp .env .env.local
+   ```
+
+2. **Configure your API keys in `.env.local`:**
+   ```bash
+   # Google Gemini AI API Key
+   GOOGLE_GEMINI_API_KEY=your_actual_gemini_api_key_here
+   
+   # Google Cloud Text-to-Speech API Key  
+   GOOGLE_CLOUD_API_KEY=your_actual_google_cloud_api_key_here
+   
+   # Google Cloud Project Configuration
+   GOOGLE_CLOUD_PROJECT_ID=your_actual_project_id_here
+   GOOGLE_CLOUD_KEY_FILENAME=your_service_account_key.json
+   
+   # Database Configuration
+   DATABASE_URL=your_actual_database_connection_string
+   
+   # Environment
+   NODE_ENV=development
+   ```
+
+3. **Get your API keys:**
+   - **Google Gemini AI**: Visit [Google AI Studio](https://makersuite.google.com/app/apikey)
+   - **Google Cloud APIs**: Visit [Google Cloud Console](https://console.cloud.google.com/apis/credentials)
+   - **Service Account Key**: Download your JSON key file from Google Cloud Console
+
+4. **Place your service account key:**
+   - Copy your Google Cloud service account JSON file to the project root
+   - Update `GOOGLE_CLOUD_KEY_FILENAME` in `.env.local` to match the filename
+
+> **Security Note**: The `.env.local` file is automatically ignored by git and contains your sensitive API keys. Never commit this file to version control.
+
 ### Installation
 
 1. **Clone and install dependencies:**
