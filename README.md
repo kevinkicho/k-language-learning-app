@@ -379,20 +379,22 @@ For issues or questions:
 
 # K Language Learning App
 
-A modern, AI-powered language learning application built with Next.js, featuring on-device LLM integration, audio pronunciation, interactive quizzes, and sentence practice.
+A modern, AI-powered language learning application built with Next.js, featuring Gemini AI integration, audio pronunciation, interactive quizzes, and sentence practice.
 
 ## 🌟 Features
 
 ### 🤖 AI-Powered Learning
-- **On-device LLM Integration**: Uses Google's Gemma-3-1b model for natural language processing
-- **Natural Language Commands**: Generate quizzes using natural language like "create a quiz using sentences that contain 'i love'"
-- **Smart Quiz Generation**: AI automatically creates questions and answers based on your commands
-- **Context-Aware Responses**: The AI understands difficulty levels, topics, and question counts
+- **Gemini AI Integration**: Uses Google's Gemini AI for natural language processing and quiz generation
+- **Natural Language Commands**: Generate quizzes using natural language like "phrases to use at dinner" or "travel vocabulary"
+- **Smart Quiz Generation**: AI automatically creates relevant Spanish sentences and phrases based on your requests
+- **Context-Aware Responses**: The AI intelligently interprets user requests and provides appropriate content
+- **Grouped Quiz Review**: Organize AI-generated content into descriptive groups for focused practice
 
 ### 🎯 Interactive Learning
 - **Sentence Practice**: Add and practice Spanish sentences with audio pronunciation
 - **Word Scramble Quizzes**: Interactive word arrangement exercises
 - **Multi-Sentence Quizzes**: Practice with multiple sentences at once
+- **Grouped Quiz Review**: Review specific topics in shuffled order
 - **Progress Tracking**: Monitor your learning progress over time
 
 ### 🔊 Audio Features
@@ -404,6 +406,7 @@ A modern, AI-powered language learning application built with Next.js, featuring
 - **SQLite Database**: Local data storage with Drizzle ORM
 - **Translation Caching**: Efficient translation storage
 - **Audio Caching**: Optimized audio file management
+- **Quiz Grouping**: Organize content by topics and themes
 
 ## 🚀 Getting Started
 
@@ -411,6 +414,7 @@ A modern, AI-powered language learning application built with Next.js, featuring
 - Node.js 18+ 
 - npm or yarn
 - Google Cloud credentials (for translation and TTS)
+- Gemini AI API key
 
 ### Installation
 
@@ -470,42 +474,27 @@ A modern, AI-powered language learning application built with Next.js, featuring
 The AI understands various natural language commands for quiz generation:
 
 #### Basic Commands
-- `"create a quiz using sentences that contain 'i love'"`
-- `"generate 5 beginner questions about food"`
-- `"make an intermediate quiz about travel"`
+- `"phrases to use at dinner"`
+- `"travel vocabulary"`
+- `"business Spanish"`
+- `"shopping phrases"`
 
-#### Advanced Commands
-- `"create 10 advanced sentences about work"`
-- `"generate a quiz about family members with 8 questions"`
-- `"make a beginner quiz about greetings and introductions"`
+#### Specific Requests
+- `"how to order food in Spanish"`
+- `"useful expressions for the airport"`
+- `"greetings and introductions"`
+- `"asking for directions"`
 
-#### Command Parameters
-- **Difficulty**: `beginner`, `intermediate`, `advanced`
-- **Topics**: Use quotes for specific topics like `"food"`, `"travel"`, `"family"`
-- **Count**: Specify number of questions/sentences like `5 questions`, `10 sentences`
-
-### AI Model Setup
-
-The app uses Google's Gemma-3-1b model for on-device AI processing:
-
-1. **Automatic Download**: Run `npm run download-model` to automatically download the model
-2. **Manual Download**: If automatic download fails, manually download from [Hugging Face](https://huggingface.co/TheBloke/gemma-3-1b-it-qat-q4_0-GGUF)
-3. **Model Location**: Place the model file in the `models/` directory
+#### Context-Aware Interpretation
+The AI intelligently interprets your requests:
+- **"dinner"** → restaurant/dining phrases
+- **"travel"** → airport, hotel, transportation phrases
+- **"business"** → meetings, presentations, networking
+- **"shopping"** → stores, bargaining, sizes, colors
 
 ### AI Configuration
 
-You can customize the AI behavior in `lib/ai-service.ts`:
-
-```typescript
-export const defaultLLMConfig: LLMConfig = {
-  modelPath: './models/gemma-3-1b-it-qat-q4_0.gguf',
-  contextSize: 4096,
-  threads: 4,
-  temperature: 0.7,
-  topP: 0.9,
-  topK: 40
-};
-```
+The app uses Google's Gemini AI for natural language processing and content generation. No local model downloads are required.
 
 ## 📁 Project Structure
 
@@ -524,15 +513,14 @@ k-language-learning-app/
 │   ├── quiz/             # Quiz-related components
 │   └── AICommandInterface.tsx  # AI command interface
 ├── lib/                   # Utility libraries
-│   ├── ai-service.ts      # AI service implementation
+│   ├── gemini-service.ts  # Gemini AI service implementation
 │   ├── cache-utils.ts     # Caching utilities
 │   ├── database-drizzle.ts # Database connection
 │   ├── google-services.ts # Google Cloud services
 │   └── types.ts           # TypeScript type definitions
-├── models/                # AI model storage
 ├── public/                # Static assets
 └── scripts/               # Utility scripts
-    └── download-model.js  # Model download script
+    └── list-gemini-models.js  # Gemini models listing script
 ```
 
 ## 🔧 Development
@@ -547,7 +535,6 @@ k-language-learning-app/
 - `npm run db:generate` - Generate database migrations
 - `npm run db:migrate` - Run database migrations
 - `npm run db:studio` - Open Drizzle Studio
-- `npm run download-model` - Download AI model
 
 ### Database Management
 
@@ -570,9 +557,10 @@ npm run db:studio
 
 1. **Open the AI Command Interface** at the top of the main page
 2. **Type a natural language command** like:
-   - `"create a quiz about food"`
-   - `"generate 5 beginner questions about travel"`
-   - `"make an intermediate quiz using sentences with 'love'"`
+   - `"phrases to use at dinner"`
+   - `"travel vocabulary"`
+   - `"business Spanish"`
+   - `"shopping phrases"`
 3. **Click Generate** to create the quiz
 4. **Review and start** the generated quiz
 
@@ -604,13 +592,13 @@ This project is licensed under the MIT License.
 ## 🙏 Acknowledgments
 
 - Google Cloud for translation and TTS services
-- Google for the Gemma language model
+- Google for the Gemini AI
 - Next.js team for the excellent framework
 - Drizzle team for the ORM
 - The open-source community for various dependencies
 
 ---
 
-**Note**: The AI features require downloading the Gemma model (~2GB). The app works without the model but with limited AI functionality.
+**Note**: The AI features require a Gemini AI API key. Get your free API key from [Google AI Studio](https://makersuite.google.com/app/apikey).
 
  

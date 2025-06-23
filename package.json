@@ -1,7 +1,7 @@
 {
   "name": "k-language-learning-app",
   "version": "1.0.0",
-  "description": "AI-powered language learning app with on-device LLM, audio pronunciation, quizzes, and sentence practice features",
+  "description": "AI-powered language learning app with Gemini AI integration, audio pronunciation, quizzes, and sentence practice features",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -11,8 +11,7 @@
     "type-check": "tsc --noEmit",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
-    "db:studio": "drizzle-kit studio",
-    "download-model": "node scripts/download-model.js"
+    "db:studio": "drizzle-kit studio"
   },
   "dependencies": {
     "@google-cloud/text-to-speech": "6.0.0",
@@ -26,7 +25,6 @@
     "nanoid": "5.0.6",
     "next": "15.0.0",
     "node-fetch": "^2.7.0",
-    "node-llama-cpp": "^3.10.0",
     "react": "18.3.1",
     "react-dom": "18.3.1",
     "react-icons": "^5.5.0"
@@ -50,7 +48,8 @@
     "quiz",
     "education",
     "nextjs",
-    "react"
+    "react",
+    "gemini-ai"
   ],
   "author": "Your Name",
   "license": "MIT"

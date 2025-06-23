@@ -113,16 +113,6 @@ export interface Word {
   originalIndex: number;
 }
 
-// LLM Types
-export interface LLMConfig {
-  modelPath: string;
-  contextSize: number;
-  threads: number;
-  temperature: number;
-  topP: number;
-  topK: number;
-}
-
 export interface QuizGenerationRequest {
   command: string;
   difficulty?: 'beginner' | 'intermediate' | 'advanced';
