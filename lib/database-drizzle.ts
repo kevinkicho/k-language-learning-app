@@ -1,5 +1,5 @@
 import { nanoid } from 'nanoid';
-import { eq, and, count } from 'drizzle-orm';
+import { eq, and, count, inArray } from 'drizzle-orm';
 import { db } from '@/app/drizzle/db';
 import { sentences, quizAttempts, wordAudioCache, translationCache } from '@/app/drizzle/schema';
 import type { Sentence, QuizAttempt, WordAudioCache, TranslationCache } from '@/app/drizzle/schema';
@@ -149,6 +149,32 @@ export class DatabaseDrizzle {
   // Clear all word audio cache entries (for testing/debugging)
   async clearAllWordAudio(): Promise<void> {
     await db.delete(wordAudioCache);
+  }
+
+  // Clear all Japanese data (sentences, quiz attempts, audio cache)
+  async clearJapaneseData(): Promise<void> {
+    // First, get all Japanese sentence IDs
+    const japaneseSentences = await db.select({ id: sentences.id })
+      .from(sentences)
+      .where(eq(sentences.languageCode, 'ja-jp'));
+    
+    const japaneseSentenceIds = japaneseSentences.map(s => s.id);
+    
+    // Delete quiz attempts for Japanese sentences
+    if (japaneseSentenceIds.length > 0) {
+      await db.delete(quizAttempts)
+        .where(inArray(quizAttempts.sentenceId, japaneseSentenceIds));
+    }
+    
+    // Delete Japanese sentences
+    await db.delete(sentences)
+      .where(eq(sentences.languageCode, 'ja-jp'));
+    
+    // Delete Japanese word audio cache
+    await db.delete(wordAudioCache)
+      .where(eq(wordAudioCache.language, 'ja-jp'));
+    
+    console.log(`Cleared ${japaneseSentenceIds.length} Japanese sentences and related data`);
   }
 
   // Database statistics

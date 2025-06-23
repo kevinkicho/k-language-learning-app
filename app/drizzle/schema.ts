@@ -1,9 +1,11 @@
 import { sqliteTable, text, integer } from 'drizzle-orm/sqlite-core';
+import { createId } from '@paralleldrive/cuid2';
 
 // Sentences table
 export const sentences = sqliteTable('sentences', {
-  id: text('id').primaryKey(),
+  id: text('id').primaryKey().$defaultFn(() => createId()),
   englishSentence: text('english_sentence').notNull(),
+  nativeSentence: text('native_sentence').notNull().default(''),
   spanishTranslation: text('spanish_translation'),
   audioPath: text('audio_path'),
   quizGroup: text('quiz_group'),

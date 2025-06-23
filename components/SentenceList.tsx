@@ -36,6 +36,10 @@ const getLanguageDisplayName = (languageCode: string): string => {
       return '🇵🇹 PT';
     case 'pt':
       return '🇧🇷 PT-BR';
+    case 'ja-jp':
+      return '🇯🇵 JA';
+    case 'zh-cn':
+      return '🇨🇳 ZH';
     default:
       return '🌐 ' + languageCode.toUpperCase();
   }

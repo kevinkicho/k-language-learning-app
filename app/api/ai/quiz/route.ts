@@ -4,6 +4,10 @@ import { getGeminiService } from '@/lib/gemini-service';
 
 export async function POST(request: NextRequest) {
   try {
+    // Debug: Check environment variables in API route context
+    console.log('🔍 API Route Debug - GOOGLE_GEMINI_API_KEY:', process.env.GOOGLE_GEMINI_API_KEY);
+    console.log('🔍 API Route Debug - All env vars:', Object.keys(process.env).filter(key => key.includes('GOOGLE')));
+    
     const body: QuizGenerationRequest = await request.json();
     
     if (!body.command) {

@@ -19,14 +19,21 @@ export async function POST(request: NextRequest) {
   try {
     const { englishSentence, spanishSentence, quizGroup, languageCode = 'es-es' } = await request.json();
     
-    if (!englishSentence || typeof englishSentence !== 'string') {
-      return NextResponse.json(
-        { error: 'English sentence is required' },
-        { status: 400 }
-      );
+    // Handle missing or empty English sentence
+    let finalEnglishSentence = englishSentence;
+    if (!finalEnglishSentence || typeof finalEnglishSentence !== 'string' || finalEnglishSentence.trim() === '') {
+      // If Spanish sentence is provided, create a placeholder English sentence
+      if (spanishSentence && typeof spanishSentence === 'string' && spanishSentence.trim() !== '') {
+        finalEnglishSentence = `Practice this ${languageCode} phrase`;
+      } else {
+        return NextResponse.json(
+          { error: 'English sentence is required' },
+          { status: 400 }
+        );
+      }
     }
     
-    const existingSentence = await databaseDrizzle.findSentenceByEnglishText(englishSentence);
+    const existingSentence = await databaseDrizzle.findSentenceByEnglishText(finalEnglishSentence);
     if (existingSentence) {
       return NextResponse.json(existingSentence, { status: 200 });
     }
@@ -36,13 +43,13 @@ export async function POST(request: NextRequest) {
 
     // If a Spanish sentence is NOT provided by the AI, then try to translate
     if (!translation) {
-      const cachedTranslation = await databaseDrizzle.getTranslation(englishSentence);
+      const cachedTranslation = await databaseDrizzle.getTranslation(finalEnglishSentence);
       if (cachedTranslation) {
         translation = cachedTranslation.spanishText;
       } else {
         try {
-          translation = await googleServices.translateToSpanish(englishSentence);
-          await databaseDrizzle.saveTranslation(englishSentence, translation);
+          translation = await googleServices.translateToSpanish(finalEnglishSentence);
+          await databaseDrizzle.saveTranslation(finalEnglishSentence, translation);
         } catch (googleError) {
           console.error('Translation error:', googleError);
           console.log('Continuing without translation due to Google service error');
@@ -50,11 +57,11 @@ export async function POST(request: NextRequest) {
       }
     }
     
-    const sentence = await databaseDrizzle.addSentence(englishSentence, translation, quizGroup, languageCode);
+    const sentence = await databaseDrizzle.addSentence(finalEnglishSentence, translation, quizGroup, languageCode);
     
     if (translation) {
       try {
-        audioPath = await googleServices.generateAudio(translation, englishSentence, languageCode);
+        audioPath = await googleServices.generateAudio(translation, finalEnglishSentence, languageCode);
         await databaseDrizzle.updateSentence(sentence.id, translation, audioPath);
       } catch (audioError) {
         console.error('Audio generation error:', audioError);

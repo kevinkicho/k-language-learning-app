@@ -40,6 +40,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ message: 'All word audio cache cleared' });
     }
     
+    if (action === 'clearJapaneseData') {
+      await databaseDrizzle.clearJapaneseData();
+      return NextResponse.json({ message: 'All Japanese data cleared' });
+    }
+    
     return NextResponse.json(
       { error: 'Invalid action' },
       { status: 400 }

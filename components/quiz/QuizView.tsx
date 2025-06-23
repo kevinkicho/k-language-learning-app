@@ -3,19 +3,19 @@
 import { Sentence } from '@/lib/types';
 import { WordItem } from './useMultiQuiz';
 import AudioPlayer from '../AudioPlayer';
+import { cleanTextForDisplay } from '@/lib/utils';
 
 interface QuizViewProps {
   currentSentence: Sentence;
   shuffledWords: WordItem[];
   selectedWords: WordItem[];
   isCorrect: boolean | null;
-  progressPercentage: number;
   totalSentences: number;
   currentSentenceIndex: number;
-  onWordClick: (word: WordItem) => void;
-  onSelectedWordClick: (word: WordItem) => void;
-  onClearAnswer: () => void;
+  onSelectWord: (word: WordItem) => void;
+  onDeselectWord: (word: WordItem) => void;
   playingWord?: string | null;
+  useRomajiMode?: boolean;
 }
 
 const QuizView: React.FC<QuizViewProps> = ({
@@ -23,78 +23,66 @@ const QuizView: React.FC<QuizViewProps> = ({
   shuffledWords,
   selectedWords,
   isCorrect,
-  progressPercentage,
   totalSentences,
   currentSentenceIndex,
-  onWordClick,
-  onSelectedWordClick,
+  onSelectWord,
+  onDeselectWord,
   playingWord,
+  useRomajiMode = false,
 }) => {
-    const spanishSentence = currentSentence.spanishTranslation || currentSentence.englishSentence;
-
+  const languageCode = currentSentence.languageCode || 'es-es';
+  const displayText = cleanTextForDisplay(currentSentence.spanishTranslation || '', languageCode, useRomajiMode);
+  
   return (
-    <div>
-        <div className="mb-3">
-            <p className="lead">{currentSentence.englishSentence}</p>
-            <div className="progress">
-                <div
-                    className="progress-bar"
-                    role="progressbar"
-                    style={{ width: `${progressPercentage}%` }}
-                    aria-valuenow={progressPercentage}
-                    aria-valuemin={0}
-                    aria-valuemax={100}
-                >
-                    {currentSentenceIndex + 1} / {totalSentences}
-                </div>
-            </div>
+    <div className="p-4 bg-gray-800 text-white rounded-lg shadow-lg">
+      <h3 className="text-xl font-bold mb-2">Quiz {currentSentenceIndex + 1} of {totalSentences}</h3>
+      
+      {languageCode === 'ja-jp' && (
+        <div className="p-2 mb-3 bg-gray-700 rounded-md">
+          <p className="text-sm font-semibold text-cyan-400">
+            Quiz Mode: {useRomajiMode ? 'Romaji' : 'Native Script'}
+          </p>
         </div>
+      )}
 
-      <div className={`alert ${isCorrect === true ? 'alert-success' : isCorrect === false ? 'alert-danger' : 'alert-secondary'} p-3 d-flex flex-wrap gap-2 justify-content-center align-items-center mb-3`}>
-        {selectedWords.length > 0 ? selectedWords.map((word) => (
-          <button
-            key={word.id}
-            onClick={() => onSelectedWordClick(word)}
-            className="btn btn-light"
-          >
-            {word.word}
-          </button>
-        )) : <span className="text-muted">Click words below to build your answer.</span>}
+      <p className="mb-4 text-gray-300">
+        Translate this sentence: "{currentSentence.englishSentence}"
+      </p>
+
+      {/* Answer Area */}
+      <div className="p-3 mb-4 bg-gray-700 rounded-md min-h-[4rem] flex flex-wrap gap-2 items-center">
+        {selectedWords.length > 0 ? (
+          selectedWords.map((word) => (
+            <button
+              key={`selected-${word.id}`}
+              onClick={() => onDeselectWord(word)}
+              className="btn btn-primary"
+            >
+              {word.word}
+            </button>
+          ))
+        ) : (
+          <span className="text-gray-400">Your answer...</span>
+        )}
       </div>
 
-      <div className="d-flex flex-wrap gap-2 justify-content-center">
+      {/* Word Bank */}
+      <div className="flex flex-wrap gap-2 mb-4">
         {shuffledWords.map((word) => (
           <button
             key={word.id}
-            className={`btn ${word.isSelected ? 'btn-primary' : 'btn-outline-primary'}`}
-            onClick={async () => {
-              try {
-                await onWordClick(word);
-              } catch (error) {
-                console.error("Error during word click handling:", error);
-                // Optionally surface this error to the user
-              }
-            }}
-            disabled={selectedWords.some(sw => sw.id === word.id)}
+            onClick={() => onSelectWord(word)}
+            disabled={word.isSelected || isCorrect !== null}
+            className={`btn ${word.isSelected ? 'btn-primary' : 'btn-outline-light'}`}
           >
             {word.word}
           </button>
         ))}
       </div>
 
-      {/* Show original sentence only after answer is checked */}
       {isCorrect !== null && (
-        <div>
-          <h3>Original Spanish Sentence:</h3>
-          <p>{spanishSentence}</p>
-          <p>English: {currentSentence.englishSentence}</p>
-          {currentSentence.audioPath && (
-            <div>
-              <AudioPlayer
-                audioPath={currentSentence.audioPath}
-              />
-            </div>
-          )}
+        <div className={`mt-4 p-3 rounded-md text-center ${isCorrect ? 'bg-green-600' : 'bg-red-600'}`}>
+          <p>{isCorrect ? 'Correct!' : 'Incorrect.'}</p>
         </div>
       )}
 
@@ -103,7 +91,7 @@ const QuizView: React.FC<QuizViewProps> = ({
         <div>
           <h3>English Reference:</h3>
           <p>{currentSentence.englishSentence}</p>
-          <p>Reconstruct the Spanish translation by clicking words in the correct order</p>
+          <p>Reconstruct the {languageCode === 'ja-jp' ? 'Japanese' : 'Spanish'} translation by clicking words in the correct order</p>
         </div>
       )}
     </div>

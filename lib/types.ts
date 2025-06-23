@@ -106,7 +106,7 @@ export interface TableColumn<T> {
 // Utility Types
 export type SortField = 'date' | 'english' | 'spanish';
 export type SortOrder = 'asc' | 'desc';
-export type Language = 'en' | 'es' | 'es-es' | 'fr' | 'fr-fr' | 'de' | 'de-de' | 'it' | 'it-it' | 'pt' | 'pt-pt';
+export type Language = 'en' | 'es' | 'es-es' | 'fr' | 'fr-fr' | 'de' | 'de-de' | 'it' | 'it-it' | 'pt' | 'pt-pt' | 'ja-jp' | 'zh-cn';
 
 export interface Word {
   word: string;

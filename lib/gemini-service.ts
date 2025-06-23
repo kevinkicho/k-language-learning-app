@@ -16,15 +16,24 @@ interface ParsedSentence {
   notes?: string;
 }
 
+console.log('DEBUG: GOOGLE_GEMINI_API_KEY at server start:', process.env.GOOGLE_GEMINI_API_KEY);
+
 export class GeminiService {
   private apiKey: string;
   private baseUrl = 'https://generativelanguage.googleapis.com/v1/models/gemini-1.5-pro:generateContent';
 
   constructor() {
+    console.log('🔍 GeminiService Constructor - process.env.GOOGLE_GEMINI_API_KEY:', process.env.GOOGLE_GEMINI_API_KEY);
+    console.log('🔍 GeminiService Constructor - typeof process.env.GOOGLE_GEMINI_API_KEY:', typeof process.env.GOOGLE_GEMINI_API_KEY);
+    console.log('🔍 GeminiService Constructor - process.env keys containing GOOGLE:', Object.keys(process.env).filter(key => key.includes('GOOGLE')));
+    
     this.apiKey = process.env.GOOGLE_GEMINI_API_KEY || '';
     if (!this.apiKey) {
+      console.error('❌ GeminiService Constructor - Environment variable is missing or empty');
+      console.error('❌ Available environment variables:', Object.keys(process.env));
       throw new Error('GOOGLE_GEMINI_API_KEY environment variable is required');
     }
+    console.log('✅ GeminiService Constructor - API key loaded successfully');
   }
 
   /**
@@ -70,6 +79,8 @@ export class GeminiService {
     const isGerman = language === 'de' || language === 'de-de';
     const isItalian = language === 'it' || language === 'it-it';
     const isPortuguese = language === 'pt' || language === 'pt-pt';
+    const isJapanese = language === 'ja-jp';
+    const isChinese = language === 'zh-cn';
     
     return `You are an expert ${languageName} language tutor helping users learn practical ${languageName} through a quiz-based learning app.
 
@@ -85,6 +96,8 @@ CONTEXT:
 - ${isGerman ? 'For German, use natural expressions and appropriate regional variations if specified (Germany vs Austria).' : ''}
 - ${isItalian ? 'For Italian, use natural expressions and modern conversational language.' : ''}
 - ${isPortuguese ? 'For Portuguese, use natural expressions and appropriate regional variations if specified (Portugal vs Brazil).' : ''}
+- ${isJapanese ? 'For Japanese, use natural expressions with appropriate politeness levels (casual, polite, formal). Include romaji pronunciation in notes for difficult words.' : ''}
+- ${isChinese ? 'For Chinese, use natural expressions with appropriate formality levels. Include pinyin pronunciation in notes for difficult words.' : ''}
 
 USER REQUEST: "${command}"
 TARGET LANGUAGE: ${languageName} (${language || 'es-es'})
@@ -107,7 +120,7 @@ Please provide a JSON response with ${languageName} learning content in this exa
 {
   "sentences": [
     {
-      "english": "English sentence or phrase (optional - only if you want to provide English)",
+      "english": "English sentence or phrase (REQUIRED - always provide English)",
       "targetLanguage": "${languageName} sentence or phrase (required)",
       "notes": "Brief explanation or usage notes (optional)"
     }
@@ -118,9 +131,8 @@ Please provide a JSON response with ${languageName} learning content in this exa
 
 REQUIREMENTS:
 - Provide 3-8 useful sentences/phrases related to the user's request
-- You can provide sentences in either English OR ${languageName} (or both)
-- If you provide English, the app will translate it to ${languageName}
-- If you provide ${languageName} directly, the app will use it as-is
+- ALWAYS provide BOTH English AND ${languageName} sentences for each entry
+- The English sentence is REQUIRED for each ${languageName} sentence
 - Focus on practical, everyday ${languageName} that people actually use
 - Include accurate translations and helpful notes when relevant
 - Match the user's specific request context
@@ -130,6 +142,8 @@ REQUIREMENTS:
 - ${isGerman ? 'For German, use natural expressions and avoid overly formal language unless specifically requested.' : ''}
 - ${isItalian ? 'For Italian, use natural expressions and avoid overly formal language unless specifically requested.' : ''}
 - ${isPortuguese ? 'For Portuguese, use natural expressions and avoid overly formal language unless specifically requested.' : ''}
+- ${isJapanese ? 'For Japanese, use natural expressions with appropriate politeness levels (casual, polite, formal). Include romaji pronunciation in notes for difficult words.' : ''}
+- ${isChinese ? 'For Chinese, use natural expressions with appropriate formality levels. Include pinyin pronunciation in notes for difficult words.' : ''}
 
 EXAMPLES:
 - For "dinner" or "restaurant": ordering food, asking for the menu, paying the bill
@@ -168,6 +182,10 @@ Respond only with the JSON object, no additional text.`;
         return 'Portuguese (Portugal)';
       case 'pt':
         return 'Portuguese (Brazil)';
+      case 'ja-jp':
+        return 'Japanese';
+      case 'zh-cn':
+        return 'Chinese';
       default:
         return 'Spanish';
     }
@@ -225,16 +243,28 @@ Respond only with the JSON object, no additional text.`;
       }
 
       return parsed.sentences
-        .map((s: any) => ({
-          english: s.english?.trim() || '',
-          targetLanguage: s.targetLanguage?.trim() || s.spanish?.trim() || '', // Support both new and old format
-          notes: s.notes?.trim() || '',
-        }))
+        .map((s: any) => {
+          const targetLanguage = s.targetLanguage?.trim() || s.spanish?.trim() || '';
+          const english = s.english?.trim() || '';
+          
+          // If English is missing, create a placeholder
+          let finalEnglish = english;
+          if (!finalEnglish && targetLanguage) {
+            // Create a simple English placeholder based on the target language
+            finalEnglish = `Practice this ${targetLanguage} phrase`;
+          }
+          
+          return {
+            english: finalEnglish,
+            targetLanguage: targetLanguage,
+            notes: s.notes?.trim() || '',
+          };
+        })
         .filter((s: ParsedSentence) => 
           s.targetLanguage && 
           s.targetLanguage.length > 0 &&
-          // Only require English if targetLanguage is provided
-          (!s.english || s.english.length > 0)
+          s.english && 
+          s.english.length > 0
         );
 
     } catch (error) {
@@ -248,6 +278,16 @@ Respond only with the JSON object, no additional text.`;
    * Converts parsed sentences into quiz format
    */
   private createQuizFromSentences(sentences: ParsedSentence[], command: string, language?: string): QuizGenerationResponse {
+    // Use Japanese-specific quiz generation for Japanese
+    if (language === 'ja-jp') {
+      return this.createJapaneseQuizFromSentences(sentences, command);
+    }
+    
+    // Use Chinese-specific quiz generation for Chinese
+    if (language === 'zh-cn') {
+      return this.createChineseQuizFromSentences(sentences, command);
+    }
+    
     const timestamp = Date.now();
     const languageName = this.getLanguageName(language);
     
@@ -301,6 +341,8 @@ Respond only with the JSON object, no additional text.`;
     const isGerman = language === 'de' || language === 'de-de';
     const isItalian = language === 'it' || language === 'it-it';
     const isPortuguese = language === 'pt' || language === 'pt-pt';
+    const isJapanese = language === 'ja-jp';
+    const isChinese = language === 'zh-cn';
     
     let options: string[] = [];
 
@@ -338,6 +380,20 @@ Respond only with the JSON object, no additional text.`;
         type === 'translation' ? 'Incorreto' : 'Wrong',
         type === 'translation' ? 'Não sei' : 'I do not know',
         type === 'translation' ? 'Talvez' : 'Maybe'
+      ];
+    } else if (isJapanese) {
+      options = [
+        correctAnswer || (type === 'translation' ? 'このフレーズを練習する' : 'Practice this phrase'),
+        type === 'translation' ? '間違い' : 'Wrong',
+        type === 'translation' ? '分からない' : 'I do not know',
+        type === 'translation' ? 'たぶん' : 'Maybe'
+      ];
+    } else if (isChinese) {
+      options = [
+        correctAnswer || (type === 'translation' ? '练习这个短语' : 'Practice this phrase'),
+        type === 'translation' ? '错误' : 'Wrong',
+        type === 'translation' ? '我不知道' : 'I do not know',
+        type === 'translation' ? '也许' : 'Maybe'
       ];
     } else { // Default to English
       options = [
@@ -400,9 +456,311 @@ Respond only with the JSON object, no additional text.`;
       };
     }
   }
+
+  /**
+   * Japanese-specific quiz generation with proper word chunking and writing system options
+   */
+  private createJapaneseQuizFromSentences(sentences: ParsedSentence[], command: string): QuizGenerationResponse {
+    const timestamp = Date.now();
+    
+    // Randomly choose between native script mode and romaji mode
+    const useRomajiMode = Math.random() > 0.5;
+    
+    const quizSentences = sentences.map((sentence, index) => ({
+      id: `sentence_${timestamp}_${index + 1}`,
+      spanish: sentence.targetLanguage, // Keep field name for compatibility
+      english: sentence.english,
+      difficulty: 'beginner' as const,
+      topic: command || 'general'
+    }));
+
+    const questions = quizSentences.slice(0, 5).map((sentence, index) => {
+      const questionType = Math.random() > 0.5 ? 'translation' : 'comprehension';
+      
+      // Process the Japanese text based on quiz mode
+      const processedJapaneseText = useRomajiMode 
+        ? this.extractRomajiFromJapanese(sentence.spanish)
+        : this.extractNativeScriptFromJapanese(sentence.spanish);
+      
+      if (questionType === 'translation') {
+        return {
+          id: `q_translation_${index + 1}`,
+          question: `How do you say this in Japanese?${useRomajiMode ? ' (Romaji)' : ' (Native Script)'}\n"${sentence.english}"`,
+          correctAnswer: processedJapaneseText,
+          options: this.getJapaneseSpecificOptions(processedJapaneseText, 'translation', useRomajiMode),
+          type: 'translation' as const,
+        };
+      } else { // Comprehension
+        return {
+          id: `q_comprehension_${index + 1}`,
+          question: `What does this Japanese phrase mean?${useRomajiMode ? ' (Romaji)' : ' (Native Script)'}\n"${processedJapaneseText}"`,
+          correctAnswer: sentence.english,
+          options: this.getJapaneseSpecificOptions(sentence.english, 'comprehension', useRomajiMode),
+          type: 'multiple-choice' as const,
+        };
+      }
+    });
+
+    return {
+      success: true,
+      quiz: {
+        id: `quiz_${timestamp}`,
+        title: `Japanese Quiz: ${command}${useRomajiMode ? ' (Romaji Mode)' : ' (Native Script Mode)'}`,
+        sentences: quizSentences,
+        questions: questions.sort(() => Math.random() - 0.5) // Shuffle questions
+      }
+    };
+  }
+
+  /**
+   * Extracts romaji from Japanese text (removes native script)
+   */
+  private extractRomajiFromJapanese(text: string): string {
+    // Extract romaji from parentheses
+    const romajiMatches = text.match(/\(([^)]+)\)/g);
+    if (romajiMatches && romajiMatches.length > 0) {
+      // Join all romaji parts and clean up
+      return romajiMatches
+        .map(match => match.replace(/[()]/g, ''))
+        .join(' ')
+        .trim();
+    }
+    
+    // If no romaji in parentheses, try to extract any romaji-like text
+    const romajiPattern = /[a-zA-Z\s]+/g;
+    const romajiParts = text.match(romajiPattern);
+    if (romajiParts) {
+      return romajiParts.join(' ').trim();
+    }
+    
+    // Fallback: return original text if no romaji found
+    return text;
+  }
+
+  /**
+   * Extracts native script from Japanese text (removes romaji)
+   */
+  private extractNativeScriptFromJapanese(text: string): string {
+    // Remove romaji in parentheses and any standalone romaji
+    return text
+      .replace(/\([^)]*\)/g, '') // Remove parentheses and content
+      .replace(/\s+/g, ' ') // Normalize spaces
+      .trim();
+  }
+
+  /**
+   * Japanese-specific answer options with proper writing system handling
+   */
+  private getJapaneseSpecificOptions(correctAnswer?: string, type: 'translation' | 'comprehension' = 'translation', useRomajiMode: boolean = false): string[] {
+    const options: string[] = [];
+    
+    // Add the correct answer
+    options.push(correctAnswer || (useRomajiMode ? 'kono furēzu o renshū suru' : 'このフレーズを練習する'));
+    
+    // Add Japanese-specific distractors based on mode
+    if (type === 'translation') {
+      if (useRomajiMode) {
+        // Romaji mode distractors
+        options.push(
+          'machigai',
+          'wakaranai', 
+          'tabun'
+        );
+      } else {
+        // Native script mode distractors
+        options.push(
+          '間違い',
+          '分からない', 
+          'たぶん'
+        );
+      }
+    } else {
+      // Comprehension mode - always use English
+      options.push(
+        'Wrong',
+        'I do not know',
+        'Maybe'
+      );
+    }
+    
+    return options.sort(() => Math.random() - 0.5); // Shuffle options
+  }
+
+  /**
+   * Japanese word chunking - splits Japanese text into meaningful chunks
+   * Handles mixed hiragana/katakana/kanji text
+   */
+  private chunkJapaneseText(text: string, useRomajiMode: boolean = false): string[] {
+    if (useRomajiMode) {
+      // For romaji mode, extract and chunk romaji
+      const romajiText = this.extractRomajiFromJapanese(text);
+      return romajiText.split(/\s+/).filter(word => word.length > 0);
+    }
+    
+    // Remove romaji in parentheses and clean the text
+    const cleanText = text.replace(/\([^)]*\)/g, '').trim();
+    
+    // Split by common Japanese particles and conjunctions
+    const chunks: string[] = [];
+    let currentChunk = '';
+    
+    for (let i = 0; i < cleanText.length; i++) {
+      const char = cleanText[i];
+      currentChunk += char;
+      
+      // Split after particles, conjunctions, or punctuation
+      const shouldSplit = 
+        // Common particles
+        ['は', 'が', 'を', 'に', 'で', 'から', 'まで', 'の', 'と', 'や', 'も', 'か', 'ね', 'よ', 'な'].includes(char) ||
+        // Punctuation
+        ['。', '、', '！', '？', '：', '；'].includes(char) ||
+        // Conjunctions
+        ['そして', 'しかし', 'でも', 'でも', 'また', 'または'].some(conj => 
+          cleanText.substring(i - conj.length + 1, i + 1) === conj
+        );
+      
+      if (shouldSplit && currentChunk.trim()) {
+        chunks.push(currentChunk.trim());
+        currentChunk = '';
+      }
+    }
+    
+    // Add remaining chunk if any
+    if (currentChunk.trim()) {
+      chunks.push(currentChunk.trim());
+    }
+    
+    // Filter out empty chunks and very short ones (less than 2 characters)
+    return chunks.filter(chunk => chunk.length >= 2);
+  }
+
+  /**
+   * Creates Japanese word audio chunks for quiz interface
+   */
+  private createJapaneseWordChunks(japaneseText: string, useRomajiMode: boolean = false): string[] {
+    const chunks = this.chunkJapaneseText(japaneseText, useRomajiMode);
+    
+    // If we have too few chunks, try splitting by character type boundaries
+    if (chunks.length < 2 && !useRomajiMode) {
+      return this.splitByCharacterType(japaneseText);
+    }
+    
+    return chunks;
+  }
+
+  /**
+   * Splits Japanese text by character type boundaries (hiragana/katakana/kanji)
+   */
+  private splitByCharacterType(text: string): string[] {
+    const chunks: string[] = [];
+    let currentChunk = '';
+    let currentType = this.getCharacterType(text[0] || '');
+    
+    for (let i = 0; i < text.length; i++) {
+      const char = text[i];
+      const charType = this.getCharacterType(char);
+      
+      // If character type changes and we have a chunk, split
+      if (charType !== currentType && currentChunk.length > 0) {
+        chunks.push(currentChunk);
+        currentChunk = '';
+        currentType = charType;
+      }
+      
+      currentChunk += char;
+    }
+    
+    // Add final chunk
+    if (currentChunk.length > 0) {
+      chunks.push(currentChunk);
+    }
+    
+    return chunks.filter(chunk => chunk.length > 0);
+  }
+
+  /**
+   * Determines the type of Japanese character
+   */
+  private getCharacterType(char: string): 'hiragana' | 'katakana' | 'kanji' | 'romaji' | 'other' {
+    const hiraganaRange = /[\u3040-\u309F]/;
+    const katakanaRange = /[\u30A0-\u30FF]/;
+    const kanjiRange = /[\u4E00-\u9FAF]/;
+    const romajiRange = /[a-zA-Z]/;
+    
+    if (hiraganaRange.test(char)) return 'hiragana';
+    if (katakanaRange.test(char)) return 'katakana';
+    if (kanjiRange.test(char)) return 'kanji';
+    if (romajiRange.test(char)) return 'romaji';
+    return 'other';
+  }
+
+  /**
+   * Chinese-specific quiz generation with proper character handling and pinyin options
+   */
+  private createChineseQuizFromSentences(sentences: ParsedSentence[], command: string): QuizGenerationResponse {
+    const timestamp = Date.now();
+    
+    const quizSentences = sentences.map((sentence, index) => ({
+      id: `sentence_${timestamp}_${index + 1}`,
+      spanish: sentence.targetLanguage, // Keep field name for compatibility
+      english: sentence.english,
+      difficulty: 'beginner' as const,
+      topic: command || 'general'
+    }));
+
+    const questions = quizSentences.slice(0, 5).map((sentence, index) => {
+      const questionType = Math.random() > 0.5 ? 'translation' : 'comprehension';
+      
+      if (questionType === 'translation') {
+        return {
+          id: `q_translation_${index + 1}`,
+          question: `How do you say this in Chinese?\n"${sentence.english}"`,
+          correctAnswer: sentence.spanish,
+          options: this.getChineseSpecificOptions(sentence.spanish),
+          type: 'translation' as const,
+        };
+      } else { // Comprehension
+        return {
+          id: `q_comprehension_${index + 1}`,
+          question: `What does this Chinese phrase mean?\n"${sentence.spanish}"`,
+          correctAnswer: sentence.english,
+          options: this.getChineseSpecificOptions(sentence.english),
+          type: 'multiple-choice' as const,
+        };
+      }
+    });
+
+    return {
+      success: true,
+      quiz: {
+        id: `quiz_${timestamp}`,
+        title: `Chinese Quiz: ${command}`,
+        sentences: quizSentences,
+        questions: questions.sort(() => Math.random() - 0.5) // Shuffle questions
+      }
+    };
+  }
+
+  /**
+   * Gets Chinese-specific answer options
+   */
+  private getChineseSpecificOptions(correctAnswer?: string): string[] {
+    const options: string[] = [];
+    
+    // Add the correct answer
+    options.push(correctAnswer || 'Practice this phrase');
+    
+    // Add Chinese-specific distractors
+    options.push(
+      'Wrong',
+      'I do not know',
+      'Maybe'
+    );
+    
+    return options.sort(() => Math.random() - 0.5); // Shuffle options
+  }
 }
 
-// Singleton instance
 let geminiServiceInstance: GeminiService | null = null;
 
 export const getGeminiService = (): GeminiService => {
@@ -410,4 +768,4 @@ export const getGeminiService = (): GeminiService => {
     geminiServiceInstance = new GeminiService();
   }
   return geminiServiceInstance;
-}; 
+};

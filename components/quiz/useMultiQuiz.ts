@@ -1,5 +1,6 @@
 import { Sentence } from "@/lib/types";
 import { QuizAction, QuizActionType } from './actions';
+import { chunkTextByLanguage } from '@/lib/utils';
 
 export interface Word {
   word: string;
@@ -28,6 +29,7 @@ export interface QuizState {
   isFinalReview: boolean;
   playingWord: string | null;
   quizAttempts: QuizAttempt[];
+  useRomajiMode?: boolean;
 }
 
 export const initialQuizState: QuizState = {
@@ -42,25 +44,41 @@ export const initialQuizState: QuizState = {
   playingWord: null,
   isFinalReview: false,
   quizAttempts: [],
+  useRomajiMode: false,
 };
 
 export function quizReducer(state: QuizState, action: QuizAction): QuizState {
   switch (action.type) {
     case QuizActionType.INITIALIZE_QUIZ: {
       const spanishSentence = action.sentence.spanishTranslation || action.sentence.englishSentence;
-      const words = spanishSentence.split(' ').map((word: string, index: number) => ({
+      const languageCode = action.sentence.languageCode || 'es-es';
+      
+      // Determine if this is a Japanese quiz and which mode to use
+      let useRomajiMode = false;
+      if (languageCode === 'ja-jp') {
+        useRomajiMode = Math.random() > 0.5; // 50% chance for romaji mode
+      }
+      
+      // For now, use simple word splitting as fallback
+      // The async chunking will be handled in the component
+      const wordChunks = spanishSentence.split(/\s+/).filter(word => word.length > 0);
+      
+      const words = wordChunks.map((word: string, index: number) => ({
         id: `${index}-${word}`,
         word: word.replace(/[.,!?;:]/g, ''),
         isSelected: false,
         originalIndex: index,
       }));
+      
       const shuffled = [...words].sort(() => Math.random() - 0.5);
+      
       return {
         ...state,
         shuffledWords: shuffled,
         selectedWords: [],
         isCorrect: null,
         score: 0,
+        useRomajiMode,
       };
     }
     case QuizActionType.SELECT_WORD:

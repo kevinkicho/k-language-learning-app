@@ -1,1 +1,1 @@
-self.__REACT_LOADABLE_MANIFEST="{}"
+self.__REACT_LOADABLE_MANIFEST="{\"app\\\\page.tsx -> @/components/MultiQuizModal\":{\"id\":\"app\\\\page.tsx -> @/components/MultiQuizModal\",\"files\":[\"static/chunks/_app-pages-browser_components_MultiQuizModal_tsx.js\"]},\"app\\\\page.tsx -> @/components/QuizModal\":{\"id\":\"app\\\\page.tsx -> @/components/QuizModal\",\"files\":[\"static/chunks/_app-pages-browser_components_QuizModal_tsx.js\"]}}"

@@ -218,11 +218,14 @@ export class CachedAPI {
   static async getWordAudio(text: string, language: string = 'es-es'): Promise<Blob> {
     const cacheKey = `audio_${text}_${language}`;
     
+    // For debugging: temporarily disable cache to force fresh audio
     const cached = getAudioCache(cacheKey);
     if (cached) {
+      console.log(`🎵 Serving cached audio for "${text}" (${cached.size} bytes)`);
       return cached;
     }
     
+    console.log(`🎵 Fetching fresh audio for "${text}"`);
     const response = await fetch('/api/audio/word', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -235,6 +238,7 @@ export class CachedAPI {
     }
     
     const blob = await response.blob();
+    console.log(`🎵 Received fresh blob for "${text}":`, blob.size, 'bytes, type:', blob.type);
     setAudioCache(cacheKey, blob);
     return blob;
   }

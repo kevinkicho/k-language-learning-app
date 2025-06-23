@@ -1,14 +1,24 @@
 'use client';
 
 import { useState, useTransition, useEffect } from 'react';
+import dynamic from 'next/dynamic';
 import { Sentence, QuizGenerationResponse, Language } from '@/lib/types';
 import { CachedAPI } from '@/lib/cache-utils';
 import SentenceInput from '@/components/SentenceInput';
 import SentenceList from '@/components/SentenceList';
-import QuizModal from '@/components/QuizModal';
-import MultiQuizModal from '@/components/MultiQuizModal';
 import { AICommandInterface } from '@/components/AICommandInterface';
 import TabNavigation, { TabConfig } from '@/components/ui/TabNavigation';
+import LoadingSpinner from '@/components/ui/LoadingSpinner';
+
+const QuizModal = dynamic(() => import('@/components/QuizModal'), {
+  loading: () => <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60 backdrop-blur-sm"><LoadingSpinner /></div>,
+  ssr: false
+});
+
+const MultiQuizModal = dynamic(() => import('@/components/MultiQuizModal'), {
+  loading: () => <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60 backdrop-blur-sm"><LoadingSpinner /></div>,
+  ssr: false
+});
 
 export default function HomePage() {
   const [sentences, setSentences] = useState<Sentence[]>([]);
@@ -34,7 +44,9 @@ export default function HomePage() {
     { value: 'de' as const, label: '🇦🇹 German (Austria)' },
     { value: 'it-it' as const, label: '🇮🇹 Italian (Italy)' },
     { value: 'pt-pt' as const, label: '🇵🇹 Portuguese (Portugal)' },
-    { value: 'pt' as const, label: '🇧🇷 Portuguese (Brazil)' }
+    { value: 'pt' as const, label: '🇧🇷 Portuguese (Brazil)' },
+    { value: 'ja-jp' as const, label: '🇯🇵 Japanese (日本語)' },
+    { value: 'zh-cn' as const, label: '🇨🇳 Chinese (中文)' }
   ];
 
   // Get unique quiz groups from sentences

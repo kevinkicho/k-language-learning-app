@@ -3,6 +3,7 @@ import { databaseDrizzle } from '@/lib/database-drizzle';
 import { googleServices } from '@/lib/google-services';
 import { promises as fs } from 'fs';
 import path from 'path';
+import crypto from 'crypto';
 
 // Function to sanitize filename by replacing invalid characters
 function sanitizeFilename(text: string): string {
@@ -11,6 +12,14 @@ function sanitizeFilename(text: string): string {
     .replace(/\s+/g, '_') // Replace spaces with underscore
     .replace(/__+/g, '_') // Replace multiple underscores with single underscore
     .trim();
+}
+
+// Function to create a unique filename for a word
+function createUniqueFilename(text: string, language: string): string {
+  const sanitizedWord = sanitizeFilename(text);
+  // Create a hash of the original text to ensure uniqueness
+  const hash = crypto.createHash('md5').update(`${text}_${language}`).digest('hex').substring(0, 8);
+  return `${sanitizedWord}_${hash}_word`;
 }
 
 export async function POST(request: NextRequest) {
@@ -57,8 +66,15 @@ export async function POST(request: NextRequest) {
     // Generate new audio using the correct method
     console.log(`Generating audio for word: "${text}"`);
     
-    // Use the googleServices.generateAudio method with standardized naming
-    const audioPath = await googleServices.generateAudio(text, text, language);
+    // For Japanese single kana/particle, use the particle as-is
+    // The TTS should be able to pronounce single kana naturally
+    let ttsInput = text;
+
+    // Create a unique filename for this word
+    const uniqueText = createUniqueFilename(text, language);
+    
+    // Use the googleServices.generateAudio method with unique naming
+    const audioPath = await googleServices.generateAudio(ttsInput, uniqueText, language);
     
     // Read the generated file
     const filePath = path.join(process.cwd(), 'public', audioPath);

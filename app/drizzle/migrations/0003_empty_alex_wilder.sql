@@ -1,0 +1,1 @@
+ALTER TABLE `sentences` ADD `native_sentence` text DEFAULT '' NOT NULL; 

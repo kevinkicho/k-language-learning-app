@@ -1,171 +1,150 @@
 'use client';
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useEffect, useReducer, useCallback, useRef } from 'react';
 import { Sentence } from '@/lib/types';
-import AudioPlayer from './AudioPlayer';
 import { CachedAPI } from '@/lib/cache-utils';
 import { useAudioPlayer } from '@/hooks/useAudioPlayer';
 import Button from './ui/Button';
+import { chunkTextByLanguage, cleanTextForDisplay } from '@/lib/utils';
+import LoadingSpinner from './ui/LoadingSpinner';
+import AudioPlayer from './AudioPlayer';
+import { 
+  initialSingleQuizState, 
+  singleQuizReducer, 
+  SingleQuizActionType, 
+  WordItem 
+} from './quiz/useSingleQuiz';
 
 interface QuizModalProps {
   sentence: Sentence;
   onClose: () => void;
 }
 
-interface WordItem {
-  id: string;
-  word: string;
-  isSelected: boolean;
-  originalIndex: number;
-}
-
-interface QuizState {
-  shuffledWords: WordItem[];
-  selectedWords: WordItem[];
-  isCorrect: boolean | null;
-  score: number;
-  isSubmitting: boolean;
-}
-
 export default function QuizModal({ sentence, onClose }: QuizModalProps) {
-  const [quizState, setQuizState] = useState<QuizState>({
-    shuffledWords: [],
-    selectedWords: [],
-    isCorrect: null,
-    score: 0,
-    isSubmitting: false,
-  });
-  const [countdown, setCountdown] = useState<number>(0);
+  const [state, dispatch] = useReducer(singleQuizReducer, initialSingleQuizState);
+  const { 
+    shuffledWords, 
+    selectedWords, 
+    isCorrect, 
+    score, 
+    isSubmitting, 
+    isLoading, 
+    useRomajiMode 
+  } = state;
   
   const { playingWord, playWordAudio } = useAudioPlayer();
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
 
+  const initializeQuiz = useCallback(async (currentSentence: Sentence) => {
+    dispatch({ type: SingleQuizActionType.INITIALIZE_START });
+    
+    const targetSentence = currentSentence.nativeSentence || currentSentence.spanishTranslation || currentSentence.englishSentence;
+    const languageCode = currentSentence.languageCode || 'es-es';
+    
+    let useRomaji = false;
+    if (languageCode === 'ja-jp') {
+      useRomaji = Math.random() > 0.5;
+    }
+    
+    try {
+      const wordChunks = await chunkTextByLanguage(targetSentence, languageCode, useRomaji);
+      
+      const words = wordChunks.map((word: string, index: number) => ({
+        id: `${index}-${word}`,
+        word: word.replace(/[.,!?;:]/g, ''),
+        isSelected: false,
+        originalIndex: index,
+      }));
+
+      const shuffled = [...words].sort(() => Math.random() - 0.5);
+      
+      dispatch({ 
+        type: SingleQuizActionType.INITIALIZE_SUCCESS, 
+        payload: { shuffledWords: shuffled, useRomajiMode: useRomaji } 
+      });
+    } catch (error) {
+      console.error('Error initializing quiz:', error);
+      // You could dispatch an INITIALIZE_FAILURE action here if needed
+    }
+  }, []);
+
   useEffect(() => {
-    initializeQuiz();
+    if (sentence) {
+      initializeQuiz(sentence);
+    }
     
     return () => {
       if (timeoutRef.current) {
         clearTimeout(timeoutRef.current);
       }
     };
-  }, [sentence]);
+  }, [sentence, initializeQuiz]);
 
-  const initializeQuiz = useCallback(() => {
-    const spanishSentence = sentence.spanishTranslation || sentence.englishSentence;
-    const words = spanishSentence.split(' ').map((word: string, index: number) => ({
-      id: `${index}-${word}`,
-      word: word.replace(/[.,!?;:]/g, ''),
-      isSelected: false,
-      originalIndex: index,
-    }));
-
-    const shuffled = [...words].sort(() => Math.random() - 0.5);
-    setQuizState(prev => ({ ...prev, shuffledWords: shuffled, selectedWords: [], isCorrect: null, score: 0 }));
-  }, [sentence.spanishTranslation, sentence.englishSentence]);
+  const handleSelectedWordClick = (word: WordItem) => {
+    dispatch({ type: SingleQuizActionType.DESELECT_WORD, payload: word });
+  };
 
   const checkAnswer = useCallback(async (wordsToCheck: WordItem[]) => {
-    const spanishSentence = sentence.spanishTranslation || sentence.englishSentence;
-    const totalWords = spanishSentence.split(' ').length;
-    
-    if (wordsToCheck.length !== totalWords) {
-      return;
-    }
+    const totalWords = shuffledWords.length;
+    if (wordsToCheck.length !== totalWords) return;
 
+    dispatch({ type: SingleQuizActionType.SUBMIT_START });
+    
     const isInCorrectOrder = wordsToCheck.every((word, index) => word.originalIndex === index);
     const correctWords = wordsToCheck.filter((word, index) => word.originalIndex === index).length;
     const newScore = Math.round((correctWords / totalWords) * 100);
     
-    setQuizState(prev => ({ ...prev, score: newScore, isCorrect: isInCorrectOrder }));
+    dispatch({ type: SingleQuizActionType.SET_ANSWER, payload: { isCorrect: isInCorrectOrder, score: newScore } });
     
-    setQuizState(prev => ({ ...prev, isSubmitting: true }));
     try {
       await CachedAPI.saveQuizAttempt(sentence.id, newScore, totalWords);
     } catch (error) {
       console.error('Error saving quiz attempt:', error);
     } finally {
-      setQuizState(prev => ({ ...prev, isSubmitting: false }));
+      dispatch({ type: SingleQuizActionType.SUBMIT_END });
     }
-  }, [sentence.id, sentence.spanishTranslation, sentence.englishSentence]);
+  }, [shuffledWords.length, sentence.id]);
 
   const resetQuiz = useCallback(() => {
-    initializeQuiz();
-  }, [initializeQuiz]);
+    if (sentence) {
+      initializeQuiz(sentence);
+    }
+  }, [sentence, initializeQuiz]);
 
   const handleWordClick = useCallback(async (word: WordItem) => {
-    console.log(`🖱️ QuizModal: Word clicked: ${word.word}, isSelected: ${word.isSelected}`);
-    
     if (word.isSelected) {
-      console.log(`🔄 Deselecting word: ${word.word}`);
-      setQuizState(prev => ({
-        ...prev,
-        shuffledWords: prev.shuffledWords.map(w => w.id === word.id ? { ...w, isSelected: false } : w),
-        selectedWords: prev.selectedWords.filter(w => w.id !== word.id)
-      }));
-    } else {
-      // Play audio for the word first
-      try {
-        console.log(`🎵 QuizModal: Calling playWordAudio for: ${word.word}`);
-        await playWordAudio(word.word, sentence.languageCode || 'es-es');
-        console.log(`✅ QuizModal: Audio played successfully for: ${word.word}`);
-      } catch (error) {
-        console.error('❌ QuizModal: Error playing word audio:', error);
-      }
-      
-      console.log(`📝 QuizModal: Selecting word: ${word.word}`);
-      setQuizState(prev => {
-        const updatedShuffled = prev.shuffledWords.map(w => 
-          w.id === word.id ? { ...w, isSelected: true } : w
-        );
-        const newSelectedWords = [...prev.selectedWords, word];
-        
-        const spanishSentence = sentence.spanishTranslation || sentence.englishSentence;
-        const totalWords = spanishSentence.split(' ').length;
-        
-        if (newSelectedWords.length === totalWords && prev.isCorrect === null) {
-          if (timeoutRef.current) {
-            clearTimeout(timeoutRef.current);
-          }
-          
-          timeoutRef.current = setTimeout(() => {
-            checkAnswer(newSelectedWords);
-          }, 100);
-        }
-        
-        return {
-          ...prev,
-          shuffledWords: updatedShuffled,
-          selectedWords: newSelectedWords,
-        };
-      });
+      handleSelectedWordClick(word);
+      return;
     }
-  }, [sentence.spanishTranslation, sentence.englishSentence, checkAnswer, playWordAudio]);
+    
+    try {
+      await playWordAudio(word.word, sentence.languageCode || 'es-es');
+    } catch (error) {
+      console.error('❌ QuizModal: Error playing word audio:', error);
+    }
+    
+    dispatch({ type: SingleQuizActionType.SELECT_WORD, payload: word });
 
-  const handleSelectedWordClick = useCallback((word: WordItem) => {
-    setQuizState(prev => {
-      const updatedSelected = prev.selectedWords.filter(w => w.id !== word.id);
-      const updatedShuffled = prev.shuffledWords.map(w => 
-        w.id === word.id ? { ...w, isSelected: false } : w
-      );
-      
-      return {
-        ...prev,
-        selectedWords: updatedSelected,
-        shuffledWords: updatedShuffled,
-      };
-    });
-  }, []);
+  }, [sentence.languageCode, playWordAudio]);
+  
+  useEffect(() => {
+    if (selectedWords.length === shuffledWords.length && shuffledWords.length > 0) {
+      if (isCorrect === null) {
+        if (timeoutRef.current) clearTimeout(timeoutRef.current);
+        timeoutRef.current = setTimeout(() => checkAnswer(selectedWords), 100);
+      }
+    }
+  }, [selectedWords, shuffledWords, isCorrect, checkAnswer]);
+
 
   const clearAnswer = useCallback(() => {
-    setQuizState(prev => ({
-      ...prev,
-      selectedWords: [],
-      shuffledWords: prev.shuffledWords.map(w => ({ ...w, isSelected: false }))
-    }));
+    dispatch({ type: SingleQuizActionType.CLEAR_ANSWER });
   }, []);
 
-  // Auto-close quiz complete view after 3 seconds
+  // Countdown and auto-close logic remains the same for now, but uses `isCorrect` from reducer state
+  const [countdown, setCountdown] = React.useState<number>(0);
   useEffect(() => {
-    if (quizState.isCorrect !== null) {
+    if (isCorrect !== null) {
       setCountdown(3);
       
       const timer = setTimeout(() => {
@@ -189,89 +168,116 @@ export default function QuizModal({ sentence, onClose }: QuizModalProps) {
     } else {
       setCountdown(0);
     }
-  }, [quizState.isCorrect, onClose]);
+  }, [isCorrect, onClose]);
 
-  const spanishSentence = sentence.spanishTranslation || sentence.englishSentence;
 
-  if (quizState.isCorrect !== null) {
+  const quizTitle = cleanTextForDisplay(
+    sentence.nativeSentence || sentence.spanishTranslation || '',
+    sentence.languageCode || 'es-es', 
+    useRomajiMode
+  );
+
+  const answer = selectedWords.map(w => w.word).join(' ');
+
+  const getWordStyle = (word: WordItem) => {
+    let className = "px-4 py-2 text-lg font-semibold text-white bg-blue-600 rounded-lg shadow-md cursor-pointer hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50";
+    if (playingWord === word.word) {
+      className += "animate-pulse-bright";
+    }
+    return className;
+  };
+  
+  if (isLoading) {
     return (
-      <div className="modal show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
-        <div className="modal-dialog modal-dialog-centered">
-          <div className="modal-content">
-            <div className="modal-body text-center">
-              <h3 className={quizState.isCorrect ? 'text-success' : 'text-danger'}>
-                {quizState.isCorrect ? '¡Correcto!' : 'Incorrecto'}
-              </h3>
-              <p>Score: {quizState.score}%</p>
-              <p>Closing in {countdown} seconds...</p>
-            </div>
-          </div>
-        </div>
+      <div className="flex flex-col items-center justify-center p-8">
+        <LoadingSpinner />
+        <p className="mt-4 text-lg text-gray-400">Loading Quiz...</p>
       </div>
     );
   }
 
   return (
-    <div className="modal show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
-      <div className="modal-dialog modal-lg">
-        <div className="modal-content">
-          <div className="modal-header">
-            <h5 className="modal-title">Quiz: {spanishSentence}</h5>
-            <button type="button" className="btn-close" onClick={onClose}></button>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60 backdrop-blur-sm">
+      <div className="relative w-full max-w-2xl p-6 mx-4 bg-gray-800 border border-gray-700 rounded-lg shadow-xl">
+        <button
+          onClick={onClose}
+          className="absolute text-2xl text-gray-400 top-4 right-4 hover:text-white"
+        >
+          &times;
+        </button>
+
+        <div className="p-4 bg-gray-900 border border-gray-700 rounded-lg">
+          <div className="flex items-center justify-between mb-4">
+            <h4 className="text-xl font-semibold text-gray-200">
+              Translate this sentence:
+            </h4>
+            <AudioPlayer
+              audioPath={`/api/audio/${sentence.id}`}
+            />
           </div>
-          
-          <div className="modal-body">
-            <div className="mb-3">
-              <h6>Instructions:</h6>
-              <p>Click the words in the correct order to form the sentence.</p>
-            </div>
-
-            {/* Selected words display */}
-            <div className="mb-3">
-              <h6>Your answer:</h6>
-              <div className="d-flex flex-wrap gap-2">
-                {quizState.selectedWords.map((word, index) => (
-                  <button
-                    key={`selected-${word.id}`}
-                    className="btn btn-primary btn-sm"
-                    onClick={() => handleSelectedWordClick(word)}
-                  >
-                    {word.word}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Available words */}
-            <div className="mb-3">
-              <h6>Available words:</h6>
-              <div className="d-flex flex-wrap gap-2">
-                {quizState.shuffledWords.map((word) => (
+          <p className="mb-2 text-2xl font-bold text-center text-white">
+            {sentence.englishSentence}
+          </p>
+          {sentence.languageCode === 'ja-jp' && useRomajiMode && (
+            <p className="text-sm text-center text-yellow-400">(Quiz Mode: Romaji)</p>
+          )}
+           {sentence.languageCode === 'ja-jp' && !useRomajiMode && (
+            <p className="text-sm text-center text-cyan-400">(Quiz Mode: Native Script)</p>
+          )}
+        </div>
+        
+        {isCorrect !== null ? (
+          <div className="flex flex-col items-center justify-center p-8 my-4 text-center">
+            <h3 className={`text-4xl font-bold ${isCorrect ? 'text-green-400' : 'text-red-400'}`}>
+              {isCorrect ? 'Correct!' : 'Incorrect'}
+            </h3>
+            <p className="mt-2 text-lg text-gray-300">Your score: {score}%</p>
+            {!isCorrect && (
+              <p className="mt-2 text-md text-gray-400">Correct Answer: {quizTitle}</p>
+            )}
+            <p className="mt-4 text-gray-500">Closing in {countdown}s...</p>
+          </div>
+        ) : (
+          <>
+            <div className="my-4 min-h-[6rem] p-4 bg-gray-900 border-2 border-dashed border-gray-600 rounded-lg flex flex-wrap items-center justify-center gap-2">
+              {selectedWords.length > 0 ? (
+                selectedWords.map((word) => (
                   <button
                     key={word.id}
-                    className={`btn btn-outline-primary me-2 mb-2 ${
-                      word.isSelected ? 'btn-primary' : ''
-                    }`}
-                    onClick={() => handleWordClick(word)}
-                    disabled={word.isSelected}
+                    onClick={() => handleSelectedWordClick(word)}
+                    className="px-4 py-2 text-lg font-semibold text-white bg-blue-600 rounded-lg shadow-md cursor-pointer hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50"
                   >
                     {word.word}
                   </button>
-                ))}
-              </div>
+                ))
+              ) : (
+                <p className="text-gray-500">Click words below to build your answer</p>
+              )}
             </div>
 
-            {/* Controls */}
-            <div className="d-flex gap-2">
-              <Button variant="secondary" onClick={clearAnswer}>
-                Clear Answer
+            <div className="flex flex-wrap justify-center gap-2 mb-4">
+              {shuffledWords.map((word) => (
+                <button
+                  key={word.id}
+                  disabled={word.isSelected}
+                  onClick={() => handleWordClick(word)}
+                  className={getWordStyle(word)}
+                >
+                  {word.word}
+                </button>
+              ))}
+            </div>
+
+            <div className="flex justify-between mt-6">
+              <Button onClick={clearAnswer} disabled={selectedWords.length === 0} variant="secondary">
+                Clear
               </Button>
-              <Button variant="info" onClick={resetQuiz}>
-                Reset Quiz
+              <Button onClick={resetQuiz} variant="secondary">
+                Reset
               </Button>
             </div>
-          </div>
-        </div>
+          </>
+        )}
       </div>
     </div>
   );

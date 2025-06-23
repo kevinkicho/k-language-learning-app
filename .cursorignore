@@ -1,0 +1,13 @@
+# Cursor-specific ignore file
+# This file tells Cursor to NOT ignore these files
+
+# Explicitly include .env files (negative patterns)
+!.env
+!.env.local
+!.env.development.local
+!.env.test.local
+!.env.production.local
+
+# Include .vscode settings
+!.vscode/
+!.vscode/settings.json 

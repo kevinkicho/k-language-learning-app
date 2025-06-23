@@ -30,10 +30,6 @@ export const cleanWord = (word: string): string => {
   return word.replace(/[.,!?;:]/g, '');
 };
 
-export const generateId = (prefix: string, index: number, word: string): string => {
-  return `${index}-${word}`;
-};
-
 // Array utilities
 export const shuffleArray = <T>(array: T[]): T[] => {
   return [...array].sort(() => Math.random() - 0.5);
@@ -63,22 +59,6 @@ export const sortSentences = (
   });
 };
 
-// Quiz utilities
-export const calculateScore = (selectedWords: any[], totalWords: number): number => {
-  const correctWords = selectedWords.filter((word, index) => word.originalIndex === index).length;
-  return Math.round((correctWords / totalWords) * 100);
-};
-
-export const isCorrectOrder = (selectedWords: any[]): boolean => {
-  return selectedWords.every((word, index) => word.originalIndex === index);
-};
-
-export const getScoreColor = (score: number): string => {
-  if (score >= 80) return 'bg-green-100 text-green-800';
-  if (score >= 60) return 'bg-yellow-100 text-yellow-800';
-  return 'bg-red-100 text-red-800';
-};
-
 // Audio utilities
 export const createAudioUrl = (blob: Blob): string => {
   return URL.createObjectURL(blob);
@@ -96,7 +76,7 @@ export const isValidSentence = (sentence: string): boolean => {
 };
 
 export const isValidLanguage = (language: string): boolean => {
-  return ['en', 'es', 'es-es', 'fr', 'fr-fr', 'de', 'de-de', 'it', 'it-it', 'pt', 'pt-pt'].includes(language);
+  return ['en', 'es', 'es-es', 'fr', 'fr-fr', 'de', 'de-de', 'it', 'it-it', 'pt', 'pt-pt', 'ja-jp', 'zh-cn'].includes(language);
 };
 
 // Error handling
@@ -164,4 +144,75 @@ export const safeLocalStorage = {
       return false;
     }
   }
+};
+
+/**
+ * Chunks text based on language for quiz word generation
+ * @param text - The text to chunk
+ * @param languageCode - The language code (e.g., 'ja-jp', 'es-es')
+ * @param useRomajiMode - Whether to use romaji mode for Japanese
+ * @returns Array of word chunks
+ */
+export const chunkTextByLanguage = async (text: string, languageCode: string, useRomajiMode: boolean = false): Promise<string[]> => {
+  if (!text) return [];
+
+  if (languageCode === 'ja-jp') {
+    if (useRomajiMode) {
+      // For romaji mode, extract content from parentheses or find any Latin characters
+      const romajiMatches = text.match(/\(([^)]+)\)/g);
+      let romajiText: string;
+
+      if (romajiMatches && romajiMatches.length > 0) {
+        romajiText = romajiMatches.map(match => match.replace(/[()]/g, '')).join(' ').trim();
+      } else {
+        const romajiPattern = /[a-zA-Z\s]+/g;
+        const romajiParts = text.match(romajiPattern);
+        romajiText = romajiParts ? romajiParts.join(' ') : '';
+      }
+      return romajiText.split(/\s+/).filter(word => word.length > 0);
+
+    } else {
+      // For native script mode, use the server-side API for accurate chunking
+      try {
+        const response = await fetch('/api/ai/chunk-japanese', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text }),
+        });
+        if (response.ok) {
+          const data = await response.json();
+          return data.chunks || [];
+        }
+        console.error('Failed to chunk text via API:', response.status);
+      } catch (error) {
+        console.error('Error calling chunking API:', error);
+      }
+      // Fallback for API failure: return the cleaned Japanese text as a single chunk
+      return [text.replace(/\([^)]*\)/g, '').trim()];
+    }
+  }
+  
+  // For all other languages, split by spaces and common punctuation
+  return text
+    .split(/[\s.,!?;:]+/)
+    .filter(word => word.length > 0)
+    .map(word => word.trim());
+};
+
+/**
+ * Cleans text for display in the quiz, optionally showing romaji for Japanese.
+ * @param text The text to clean.
+ * @param languageCode The language code.
+ * @param useRomajiMode Whether to extract romaji.
+ * @returns The cleaned text for display.
+ */
+export const cleanTextForDisplay = (text: string, languageCode: string, useRomajiMode: boolean = false): string => {
+  if (languageCode === 'ja-jp' && useRomajiMode) {
+    const romajiMatch = text.match(/\(([^)]+)\)/);
+    if (romajiMatch && romajiMatch[1]) {
+      return romajiMatch[1].trim();
+    }
+  }
+  // For non-romaji mode or other languages, remove the romaji part
+  return text.replace(/\s*\([^)]+\)\s*/g, ' ').trim();
 }; 
