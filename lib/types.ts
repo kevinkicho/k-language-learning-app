@@ -115,6 +115,7 @@ export interface Word {
 
 export interface QuizGenerationRequest {
   command: string;
+  language?: Language;
   difficulty?: 'beginner' | 'intermediate' | 'advanced';
   topic?: string;
   sentenceCount?: number;
