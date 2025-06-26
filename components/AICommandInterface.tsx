@@ -238,81 +238,104 @@ export const AICommandInterface: React.FC<AICommandInterfaceProps> = ({
   const languageName = getLanguageName(selectedLanguage);
 
   return (
-    <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-      <h3 className="text-xl font-semibold mb-4 text-gray-800">
-        🤖 AI Language Learning Assistant
-      </h3>
-      
-      <form onSubmit={handleSubmit} className="mb-4">
-        <div className="flex gap-2 mb-3">
-          <select
-            value={selectedLanguage}
-            onChange={(e) => setSelectedLanguage(e.target.value as Language)}
-            className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
-            disabled={isLoading}
-          >
-            {languages.map((lang) => (
-              <option key={lang.value} value={lang.value}>
-                {lang.label}
-              </option>
+    <div className="card shadow-sm border-0">
+      <div className="card-body p-4">
+        <div className="d-flex align-items-center mb-3">
+          <i className="bi bi-robot display-6 text-primary me-3"></i>
+          <div>
+            <h3 className="h5 fw-bold mb-1">AI Quiz Generator</h3>
+            <p className="text-muted small mb-0">Ask AI to create custom quizzes for you</p>
+          </div>
+        </div>
+
+        <form onSubmit={handleSubmit} className="mb-4">
+          <div className="row g-3">
+            {/* Language Selector - Mobile optimized */}
+            <div className="col-12 col-md-3">
+              <label className="form-label fw-semibold small">
+                <i className="bi bi-globe me-1"></i>
+                Language:
+              </label>
+              <select
+                value={selectedLanguage}
+                onChange={(e) => setSelectedLanguage(e.target.value as Language)}
+                className="form-select"
+                disabled={isLoading}
+              >
+                {languages.map((lang) => (
+                  <option key={lang.value} value={lang.value}>
+                    {lang.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Command Input - Mobile optimized */}
+            <div className="col-12 col-md-6">
+              <label className="form-label fw-semibold small">
+                <i className="bi bi-chat-dots me-1"></i>
+                What would you like to learn?
+              </label>
+              <input
+                type="text"
+                value={command}
+                onChange={(e) => setCommand(e.target.value)}
+                placeholder={`Ask me to create ${getLanguageName(selectedLanguage)} quizzes...`}
+                className="form-control"
+                disabled={isLoading}
+              />
+            </div>
+
+            {/* Submit Button - Mobile optimized */}
+            <div className="col-12 col-md-3">
+              <label className="form-label fw-semibold small d-none d-md-block">
+                &nbsp;
+              </label>
+              <Button
+                type="submit"
+                variant="primary"
+                className="w-100"
+                disabled={isLoading || !command.trim()}
+                size="lg"
+              >
+                {isLoading ? (
+                  <>
+                    <LoadingSpinner size="sm" />
+                    <span className="ms-2">Generating...</span>
+                  </>
+                ) : (
+                  <>
+                    <i className="bi bi-magic me-2"></i>
+                    Generate Quiz
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
+        </form>
+
+        {/* Quick Suggestions - Mobile optimized */}
+        <div>
+          <label className="form-label fw-semibold small mb-3">
+            <i className="bi bi-lightbulb me-1"></i>
+            Quick Suggestions:
+          </label>
+          <div className="row g-2">
+            {suggestions.slice(0, 4).map((suggestion, index) => (
+              <div key={index} className="col-12 col-sm-6 col-lg-3">
+                <button
+                  type="button"
+                  onClick={() => handleSuggestionClick(suggestion)}
+                  disabled={isLoading}
+                  className="btn btn-outline-primary btn-sm w-100 text-start p-2"
+                  style={{ fontSize: '0.875rem', lineHeight: '1.2' }}
+                >
+                  {suggestion}
+                </button>
+              </div>
             ))}
-          </select>
+          </div>
         </div>
-        
-        <div className="flex gap-2">
-          <input
-            type="text"
-            value={command}
-            onChange={(e) => setCommand(e.target.value)}
-            placeholder={`Ask for ${languageName} learning content... (e.g., 'I want to learn travel phrases')`}
-            className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            disabled={isLoading}
-          />
-          <Button
-            type="submit"
-            disabled={isLoading || !command.trim()}
-            className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-          >
-            {isLoading ? (
-              <>
-                <LoadingSpinner size="sm" />
-                Learning...
-              </>
-            ) : (
-              `Learn ${languageName}`
-            )}
-          </Button>
-        </div>
-      </form>
-
-      <div className="mb-4">
-        <h4 className="text-sm font-medium text-gray-700 mb-2">Try these examples:</h4>
-        <div className="flex flex-wrap gap-2">
-          {suggestions.map((suggestion, index) => (
-            <button
-              key={index}
-              onClick={() => handleSuggestionClick(suggestion)}
-              className="px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded-full hover:bg-gray-200 transition-colors"
-              disabled={isLoading}
-            >
-              {suggestion}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div className="text-xs text-gray-500">
-        <p>💡 <strong>How to ask for {languageName} learning content:</strong></p>
-        <ul className="list-disc list-inside mt-1 space-y-1">
-          <li>Ask for specific topics: "dinner phrases", "travel", "business", "shopping"</li>
-          <li>Request practical phrases: "phrases to use at dinner", "how to order food"</li>
-          <li>Ask for situations: "at the airport", "in a restaurant", "at work"</li>
-          <li>Request translations: "how do you say hello", "what is thank you in {languageName}"</li>
-          <li>Ask for general content: "useful phrases", "common expressions", "basic {languageName}"</li>
-        </ul>
-        <p className="mt-2 text-blue-600">
-          ✨ The AI will intelligently interpret your request and generate relevant {languageName} sentences for you to practice!
-        </p>
       </div>
     </div>
   );

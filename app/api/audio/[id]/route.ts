@@ -4,7 +4,22 @@ import fs from 'fs/promises';
 import { db } from '@/app/drizzle/db';
 import { sentences } from '@/app/drizzle/schema';
 import { eq } from 'drizzle-orm';
-import { generateAudio } from '@/lib/google-services';
+import { googleServices } from '@/lib/google-services';
+
+// Utility to sanitize sentence for TTS (Japanese/Chinese)
+function sanitizeForTTS(text: string, languageCode: string): string {
+  if (languageCode === 'ja-jp' || languageCode === 'zh-cn') {
+    // Remove everything after the first parenthesis (including the parenthesis)
+    // e.g. "行きましょう。(ikimashou)" => "行きましょう。"
+    // e.g. "你会说中文吗？(nǐ huì shuō zhōng wén ma?)" => "你会说中文吗？"
+    const match = text.match(/^(.*?)[\(（]/);
+    if (match) {
+      return match[1].trim();
+    }
+    return text.trim();
+  }
+  return text;
+}
 
 export async function GET(
   request: NextRequest,
@@ -41,23 +56,17 @@ export async function GET(
       return NextResponse.json({ error: 'Sentence not found' }, { status: 404 });
     }
     const sentence = sentenceResult[0];
-    const textToSpeak = sentence.spanishTranslation || sentence.englishSentence;
+    const rawText = sentence.spanishTranslation || sentence.englishSentence;
+    const textToSpeak = sanitizeForTTS(rawText, sentence.languageCode);
 
-    // 2. Generate audio using Google TTS
-    const audioBuffer = await generateAudio(textToSpeak, sentence.languageCode);
+    // 2. Generate audio using Google TTS (returns URL)
+    const audioUrl = await googleServices.generateAudio(textToSpeak, sentence.englishSentence, sentence.languageCode);
 
-    // 3. Save the audio file
-    console.log(`[sentence audio API] Attempting to save audio file to: ${audioPath}`);
-    await fs.writeFile(audioPath, audioBuffer);
-    console.log(`[sentence audio API] Successfully saved audio file.`);
+    // 3. Update the database with the new audio path (Cloud Storage URL)
+    await db.update(sentences).set({ audioPath: audioUrl }).where(eq(sentences.id, id));
 
-    // 4. Update the database with the new audio path (optional but good practice)
-    await db.update(sentences).set({ audioPath: `/audio/${id}.mp3` }).where(eq(sentences.id, id));
-
-    // 5. Serve the newly created audio file
-    return new NextResponse(audioBuffer, {
-      headers: { 'Content-Type': 'audio/mpeg' },
-    });
+    // 4. Return a redirect or JSON with the URL
+    return NextResponse.redirect(audioUrl);
 
   } catch (error) {
     console.error('Error in sentence audio API:', error);

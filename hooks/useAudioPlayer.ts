@@ -42,7 +42,20 @@ export function useAudioPlayer(): UseAudioPlayerReturn {
     setPlayingWord(word);
 
     try {
-      const blob = await CachedAPI.getWordAudio(word, language);
+      // Fetch the audio as a blob and check the type
+      const response = await fetch(`/api/audio/word`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: word, language }),
+      });
+      const contentType = response.headers.get('Content-Type');
+      if (!response.ok || !contentType || !contentType.startsWith('audio/mpeg')) {
+        const errorText = await response.text();
+        setError('Audio unavailable or corrupt.');
+        setPlayingWord(null);
+        throw new Error(`Failed to fetch audio: ${errorText}`);
+      }
+      const blob = await response.blob();
       if (blob.size === 0) throw new Error(`Blob is empty for word: ${word}`);
       
       const url = createAudioUrl(blob);

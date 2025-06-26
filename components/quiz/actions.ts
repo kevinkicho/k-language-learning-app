@@ -10,6 +10,7 @@ export enum QuizActionType {
   RESET_QUIZ = 'RESET_QUIZ',
   SET_PLAYING_WORD = 'SET_PLAYING_WORD',
   SET_FINAL_REVIEW = 'SET_FINAL_REVIEW',
+  SET_SHUFFLED_WORDS = 'SET_SHUFFLED_WORDS',
 }
 
 export type QuizAction =
@@ -21,4 +22,5 @@ export type QuizAction =
   | { type: QuizActionType.NEXT_QUIZ }
   | { type: QuizActionType.RESET_QUIZ }
   | { type: QuizActionType.SET_PLAYING_WORD; payload: string | null }
-  | { type: QuizActionType.SET_FINAL_REVIEW }; 
+  | { type: QuizActionType.SET_FINAL_REVIEW }
+  | { type: QuizActionType.SET_SHUFFLED_WORDS; payload: WordItem[] }; 

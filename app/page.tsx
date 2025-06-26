@@ -9,14 +9,12 @@ import SentenceList from '@/components/SentenceList';
 import { AICommandInterface } from '@/components/AICommandInterface';
 import TabNavigation, { TabConfig } from '@/components/ui/TabNavigation';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
-
-const QuizModal = dynamic(() => import('@/components/QuizModal'), {
-  loading: () => <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60 backdrop-blur-sm"><LoadingSpinner /></div>,
-  ssr: false
-});
+import QuizModal from '@/components/QuizModal';
+import Button from '@/components/ui/Button';
+import AudioPlayer from '@/components/AudioPlayer';
 
 const MultiQuizModal = dynamic(() => import('@/components/MultiQuizModal'), {
-  loading: () => <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60 backdrop-blur-sm"><LoadingSpinner /></div>,
+  loading: () => <LoadingSpinner />,
   ssr: false
 });
 
@@ -34,19 +32,19 @@ export default function HomePage() {
 
   // Language options for filter
   const languageOptions = [
-    { value: 'all' as const, label: '🌐 All Languages' },
-    { value: 'es-es' as const, label: '🇪🇸 Spanish (Spain)' },
-    { value: 'es' as const, label: '🇲🇽 Spanish (Latin America)' },
+    { value: 'all' as const, label: '🌐 All' },
+    { value: 'es-es' as const, label: '🇪🇸 Spanish' },
+    { value: 'es' as const, label: '🇲🇽 Spanish-LA' },
     { value: 'en' as const, label: '🇺🇸 English' },
-    { value: 'fr-fr' as const, label: '🇫🇷 French (France)' },
-    { value: 'fr' as const, label: '🇨🇦 French (Canada)' },
-    { value: 'de-de' as const, label: '🇩🇪 German (Germany)' },
-    { value: 'de' as const, label: '🇦🇹 German (Austria)' },
-    { value: 'it-it' as const, label: '🇮🇹 Italian (Italy)' },
-    { value: 'pt-pt' as const, label: '🇵🇹 Portuguese (Portugal)' },
-    { value: 'pt' as const, label: '🇧🇷 Portuguese (Brazil)' },
-    { value: 'ja-jp' as const, label: '🇯🇵 Japanese (日本語)' },
-    { value: 'zh-cn' as const, label: '🇨🇳 Chinese (中文)' }
+    { value: 'fr-fr' as const, label: '🇫🇷 French' },
+    { value: 'fr' as const, label: '🇨🇦 French-CA' },
+    { value: 'de-de' as const, label: '🇩🇪 German' },
+    { value: 'de' as const, label: '🇦🇹 German-AT' },
+    { value: 'it-it' as const, label: '🇮🇹 Italian' },
+    { value: 'pt-pt' as const, label: '🇵🇹 Portuguese' },
+    { value: 'pt' as const, label: '🇧🇷 Portuguese-BR' },
+    { value: 'ja-jp' as const, label: '🇯🇵 Japanese' },
+    { value: 'zh-cn' as const, label: '🇨🇳 Chinese' }
   ];
 
   // Get unique quiz groups from sentences
@@ -179,7 +177,38 @@ export default function HomePage() {
     startTransition(async () => {
       try {
         await CachedAPI.deleteSentence(id);
-        setSentences(prev => prev.filter(s => s.id !== id));
+        
+        // Re-fetch sentences from the database to ensure UI is in sync
+        const updatedSentences = await CachedAPI.getSentences();
+        setSentences(updatedSentences);
+        
+        // Remove from selected sentences if it was selected
+        setSelectedSentences(prev => prev.filter(s => s.id !== id));
+        
+        // Clear quiz sentence if it was the deleted one
+        if (quizSentence?.id === id) {
+          setQuizSentence(null);
+        }
+        
+        // Close multi quiz if any of the selected sentences were deleted
+        if (selectedSentences.some(s => s.id === id)) {
+          setMultiQuizVisible(false);
+        }
+        
+        // Update current quiz group if it becomes empty
+        if (activeTab === 'groups' && currentQuizGroup) {
+          const groupSentences = updatedSentences.filter(s => s.quizGroup === currentQuizGroup);
+          if (groupSentences.length === 0) {
+            // Find another group to select, or clear selection
+            const availableGroups = Array.from(new Set(updatedSentences.map(s => s.quizGroup).filter(Boolean)));
+            if (availableGroups.length > 0) {
+              setCurrentQuizGroup(availableGroups[0]);
+            } else {
+              setCurrentQuizGroup(null);
+            }
+          }
+        }
+        
         setError(null);
       } catch (error) {
         console.error('Failed to delete sentence:', error);
@@ -294,6 +323,7 @@ export default function HomePage() {
 
   const handleLanguageFilterChange = (newFilter: Language | 'all') => {
     setLanguageFilter(newFilter);
+    setSelectedSentences([]); // Clear selection when changing language
     // Update quiz group selection when switching languages
     if (activeTab === 'groups') {
       const newFilteredGroups = newFilter === 'all' ? quizGroups : quizGroups.filter(group => {
@@ -311,76 +341,130 @@ export default function HomePage() {
     }
   };
 
+  // Auto-close quiz modals if sentences are deleted
+  useEffect(() => {
+    // Close single quiz if the sentence was deleted
+    if (quizSentence && !sentences.some(s => s.id === quizSentence.id)) {
+      setQuizSentence(null);
+    }
+    
+    // Close multi quiz if any selected sentences were deleted
+    if (isMultiQuizVisible && selectedSentences.length > 0) {
+      const allSelectedExist = selectedSentences.every(s => sentences.some(existing => existing.id === s.id));
+      if (!allSelectedExist) {
+        setMultiQuizVisible(false);
+        setSelectedSentences([]);
+      }
+    }
+  }, [sentences, quizSentence, isMultiQuizVisible, selectedSentences]);
+
   return (
-    <div className="container py-4">
-      <header className="text-center mb-4">
-        <h1>LingoQuiz</h1>
-        <p className="text-muted">AI-Powered Language Learning</p>
+    <div className="container-fluid px-3 py-2">
+      <header className="text-center mb-4 py-3 bg-white rounded-3 shadow-sm">
+        <h1 className="display-5 fw-bold text-primary mb-2">LingoQuiz</h1>
+        <p className="text-muted mb-0">AI-Powered Language Learning</p>
       </header>
       
       {/* AI Command Interface */}
-      <AICommandInterface 
-        onQuizGenerated={handleAIQuizGenerated}
-        onError={handleAIError}
-      />
+      <div className="mb-4">
+        <AICommandInterface 
+          onQuizGenerated={handleAIQuizGenerated}
+          onError={handleAIError}
+        />
+      </div>
 
       {aiError && (
         <div className="alert alert-danger mb-4" role="alert">
-          <strong>AI Error:</strong> {aiError}
-          <button 
-            type="button" 
-            className="btn-close float-end" 
-            onClick={() => setAiError(null)}
-            aria-label="Close"
-          ></button>
+          <div className="d-flex align-items-center">
+            <i className="bi bi-exclamation-triangle-fill me-2"></i>
+            <div className="flex-grow-1">
+              <strong>AI Error:</strong> {aiError}
+            </div>
+            <button 
+              type="button" 
+              className="btn-close" 
+              onClick={() => setAiError(null)}
+              aria-label="Close"
+            ></button>
+          </div>
         </div>
       )}
       
-      <div className="row">
-        <div className="col-md-4">
-          <div className="card mb-4">
-            <div className="card-body">
-              <h2 className="card-title">Add a Sentence</h2>
+      <div className="row g-3">
+        {/* Mobile-first sidebar */}
+        <div className="col-12 col-lg-4">
+          <div className="card shadow-sm border-0 mb-3">
+            <div className="card-body p-4">
+              <h2 className="card-title h5 fw-bold mb-3">
+                <i className="bi bi-plus-circle me-2 text-primary"></i>
+                Add a Sentence
+              </h2>
               <SentenceInput onAddSentence={handleAddSentence} isPending={isPending} />
-              {error && <p className="text-danger mt-2">{error}</p>}
+              {error && <p className="text-danger mt-2 small">{error}</p>}
             </div>
           </div>
 
-          <div className="card">
-            <div className="card-body">
-                <h2 className="card-title">Quick Actions</h2>
-                {languageFilter !== 'all' && (
-                  <div className="alert alert-info alert-sm mb-3">
-                    <small>Filtered by: {languageOptions.find(opt => opt.value === languageFilter)?.label}</small>
-                  </div>
-                )}
-                <div className="d-grid gap-2">
-                    <button className="btn btn-info" onClick={() => {
-                        setSelectedSentences(currentSentences);
-                        setMultiQuizVisible(true);
-                    }}>
-                        Start Random Quiz ({currentSentences.length})
-                    </button>
-                    <button className="btn btn-secondary" onClick={handleSelectAll}>Select All ({currentSentences.length})</button>
-                    <button className="btn btn-light" onClick={handleDeselectAll}>Deselect All ({selectedSentences.length})</button>
+          <div className="card shadow-sm border-0">
+            <div className="card-body p-4">
+              <h2 className="card-title h5 fw-bold mb-3">
+                <i className="bi bi-lightning me-2 text-warning"></i>
+                Quick Actions
+              </h2>
+              {languageFilter !== 'all' && (
+                <div className="alert alert-info alert-sm mb-3 py-2">
+                  <small>
+                    <i className="bi bi-funnel me-1"></i>
+                    Filtered by: {languageOptions.find(opt => opt.value === languageFilter)?.label}
+                  </small>
                 </div>
+              )}
+              <div className="d-grid gap-2">
+                <button 
+                  className="btn btn-primary btn-lg" 
+                  onClick={() => {
+                    setSelectedSentences(currentSentences);
+                    setMultiQuizVisible(true);
+                  }}
+                >
+                  <i className="bi bi-play-circle me-2"></i>
+                  Start Random Quiz ({currentSentences.length})
+                </button>
+                <div className="row g-2">
+                  <div className="col-6">
+                    <button className="btn btn-outline-secondary w-100" onClick={handleSelectAll} title="Select All">
+                      <i className="bi bi-check-all"></i>
+                    </button>
+                  </div>
+                  <div className="col-6">
+                    <button className="btn btn-outline-light w-100" onClick={handleDeselectAll} title="Deselect All">
+                      <i className="bi bi-x-circle"></i>
+                    </button>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
 
-        <div className="col-md-8">
-            <section>
-                <h2>Sentences</h2>
+        {/* Main content area */}
+        <div className="col-12 col-lg-8">
+          <div className="card shadow-sm border-0">
+            <div className="card-body p-4">
+              <div className="d-flex flex-column flex-md-row align-items-start align-items-md-center justify-content-between mb-4">
+                <h2 className="h4 fw-bold mb-3 mb-md-0">
+                  <i className="bi bi-list-ul me-2 text-primary"></i>
+                  Sentences
+                </h2>
                 
-                {/* Language Filter */}
-                <div className="mb-3">
-                  <div className="d-flex align-items-center gap-2">
-                    <label className="form-label mb-0">Filter by Language:</label>
+                {/* Language Filter - Mobile optimized */}
+                <div className="w-100 w-md-auto">
+                  <div className="d-flex align-items-center gap-2 flex-wrap">
+                    <label className="form-label mb-0 small fw-semibold">Filter:</label>
                     <select 
-                      className="form-select"
+                      className="form-select form-select-sm"
                       value={languageFilter}
                       onChange={(e) => handleLanguageFilterChange(e.target.value as Language | 'all')}
-                      style={{ width: 'auto' }}
+                      style={{ minWidth: '200px' }}
                     >
                       {languageOptions.map(option => (
                         <option key={option.value} value={option.value}>
@@ -393,7 +477,7 @@ export default function HomePage() {
                         className="btn btn-outline-secondary btn-sm"
                         onClick={() => handleLanguageFilterChange('all')}
                       >
-                        Clear Filter
+                        <i className="bi bi-x"></i>
                       </button>
                     )}
                   </div>
@@ -403,80 +487,196 @@ export default function HomePage() {
                     </small>
                   )}
                 </div>
-                
-                {/* Tab Navigation */}
+              </div>
+              
+              {/* Tab Navigation - Mobile optimized */}
+              <div className="mb-4">
                 <TabNavigation 
                   tabs={tabs}
                   activeTab={activeTab}
                   onTabChange={handleTabChange}
                   className="mb-3"
                 />
+              </div>
 
-                {/* Quiz Group Selector */}
-                {activeTab === 'groups' && filteredQuizGroups.length > 0 && (
-                  <div className="mb-3">
-                    <label className="form-label">Select Quiz Group:</label>
-                    <select 
-                      className="form-select"
-                      value={currentQuizGroup || ''}
-                      onChange={(e) => handleGroupChange(e.target.value)}
-                    >
-                      {filteredQuizGroups.map(group => {
-                        const groupSentences = groupedSentences[group];
-                        const filteredCount = languageFilter === 'all' 
-                          ? groupSentences.length 
-                          : groupSentences.filter(s => s.languageCode === languageFilter).length;
-                        return (
-                          <option key={group} value={group}>
-                            {getGroupDisplayName(group)} ({filteredCount} sentences)
-                          </option>
-                        );
-                      })}
-                    </select>
+              {/* Quiz Group Selector - Mobile optimized */}
+              {activeTab === 'groups' && filteredQuizGroups.length > 0 && (
+                <div className="mb-4">
+                  <label className="form-label small fw-semibold">Select Quiz Group:</label>
+                  <select 
+                    className="form-select"
+                    value={currentQuizGroup || ''}
+                    onChange={(e) => handleGroupChange(e.target.value)}
+                  >
+                    {filteredQuizGroups.map(group => {
+                      const groupSentences = groupedSentences[group];
+                      const filteredCount = languageFilter === 'all' 
+                        ? groupSentences.length 
+                        : groupSentences.filter(s => s.languageCode === languageFilter).length;
+                      return (
+                        <option key={group} value={group}>
+                          {getGroupDisplayName(group)} ({filteredCount} sentences)
+                        </option>
+                      );
+                    })}
+                  </select>
+                </div>
+              )}
+
+              {activeTab === 'groups' && filteredQuizGroups.length === 0 && (
+                <div className="alert alert-info mb-4">
+                  <i className="bi bi-info-circle me-2"></i>
+                  <strong>No quiz groups found</strong> for the selected language. 
+                  {languageFilter !== 'all' && (
+                    <span> Try selecting "All Languages" or create new content in {languageOptions.find(opt => opt.value === languageFilter)?.label}.</span>
+                  )}
+                </div>
+              )}
+
+              <p className="text-muted mb-3">
+                <i className="bi bi-info-circle me-1"></i>
+                Select sentences below to begin a quiz.
+              </p>
+              
+              {selectedSentences.length > 0 && (
+                <div className="mb-4">
+                  <button 
+                    className="btn btn-success btn-lg w-100" 
+                    onClick={() => setMultiQuizVisible(true)} 
+                    disabled={selectedSentences.length === 0}
+                  >
+                    <i className="bi bi-play-circle me-2"></i>
+                    Start Quiz ({selectedSentences.length})
+                  </button>
+                </div>
+              )}
+              
+              {/* Action buttons for selected sentences */}
+              {selectedSentences.length === 1 && (
+                <div className="mb-4">
+                  <div className="card border-0 bg-light">
+                    <div className="card-body py-3 px-2">
+                      <h6 className="card-title mb-3 fw-semibold text-center">
+                        <i className="bi bi-gear me-2 text-primary"></i>
+                        Actions for Selected Sentence
+                      </h6>
+                      <div className="d-flex justify-content-center align-items-center gap-3">
+                        {/* Always show play button - audio can be generated on demand */}
+                        <span className="d-inline-flex">
+                          <AudioPlayer 
+                            audioPath={selectedSentences[0].audioPath || `/api/audio/${selectedSentences[0].id}`} 
+                            buttonClassName="btn-icon-circle btn-info" 
+                          />
+                        </span>
+                        <Button 
+                          variant="primary" 
+                          size="sm" 
+                          onClick={() => handleStartQuiz(selectedSentences[0])}
+                          className="btn-icon-circle"
+                          title="Start Single Quiz"
+                        >
+                          <i className="bi bi-puzzle"></i>
+                        </Button>
+                        <Button 
+                          variant="danger" 
+                          size="sm" 
+                          onClick={() => handleDeleteSentence(selectedSentences[0].id)} 
+                          disabled={isPending}
+                          className="btn-icon-circle"
+                          title="Delete Sentence"
+                        >
+                          <i className="bi bi-trash"></i>
+                        </Button>
+                      </div>
+                    </div>
                   </div>
-                )}
-
-                {activeTab === 'groups' && filteredQuizGroups.length === 0 && (
-                  <div className="alert alert-info mb-3">
-                    <strong>No quiz groups found</strong> for the selected language. 
-                    {languageFilter !== 'all' && (
-                      <span> Try selecting "All Languages" or create new content in {languageOptions.find(opt => opt.value === languageFilter)?.label}.</span>
-                    )}
+                </div>
+              )}
+              {selectedSentences.length > 1 && (
+                <div className="mb-4">
+                  <div className="card border-0 bg-light">
+                    <div className="card-body py-3 px-2">
+                      <h6 className="card-title mb-3 fw-semibold text-center">
+                        <i className="bi bi-collection me-2 text-primary"></i>
+                        Actions for {selectedSentences.length} Selected Sentences
+                      </h6>
+                      <div className="d-flex justify-content-center align-items-center gap-3">
+                        <Button
+                          variant="success"
+                          size="sm"
+                          onClick={() => setMultiQuizVisible(true)}
+                          className="btn-icon-circle"
+                          title="Start Multi Quiz"
+                        >
+                          <i className="bi bi-puzzle-fill"></i>
+                        </Button>
+                        <Button
+                          variant="danger"
+                          size="sm"
+                          onClick={async () => {
+                            await Promise.all(selectedSentences.map(s => handleDeleteSentence(s.id)));
+                            // Re-fetch sentences from the database to ensure UI is in sync
+                            const updatedSentences = await CachedAPI.getSentences();
+                            setSentences(updatedSentences);
+                            setSelectedSentences([]);
+                          }}
+                          disabled={isPending}
+                          className="btn-icon-circle"
+                          title="Delete Selected"
+                        >
+                          <i className="bi bi-trash"></i>
+                        </Button>
+                      </div>
+                    </div>
                   </div>
-                )}
-
-                <p>Select sentences below to begin a quiz.</p>
-                {selectedSentences.length > 0 &&
-                    <button className="btn btn-primary mb-3" onClick={() => setMultiQuizVisible(true)} disabled={selectedSentences.length === 0}>
-                        Start Selected Quiz ({selectedSentences.length})
-                    </button>
-                }
-                <SentenceList
-                    sentences={currentSentences}
-                    selectedIds={selectedSentences.map(s => s.id)}
-                    onDelete={handleDeleteSentence}
-                    onStartQuiz={handleStartQuiz}
-                    onToggleSelection={handleToggleSelection}
-                    isPending={isPending}
-                />
-            </section>
+                </div>
+              )}
+              
+              <SentenceList
+                sentences={currentSentences}
+                selectedIds={selectedSentences.map(s => s.id)}
+                onToggleSelection={handleToggleSelection}
+              />
+            </div>
+          </div>
         </div>
       </div>
 
-      {quizSentence && (
+      {quizSentence && sentences.some(s => s.id === quizSentence.id) && (
         <QuizModal
           sentence={quizSentence}
           onClose={() => setQuizSentence(null)}
         />
       )}
 
-      {isMultiQuizVisible && (
+      {isMultiQuizVisible && selectedSentences.length > 0 && selectedSentences.every(s => sentences.some(existing => existing.id === s.id)) && (
         <MultiQuizModal
-          sentences={selectedSentences.length > 0 ? selectedSentences : currentSentences}
-          isRandom={selectedSentences.length === 0}
+          sentences={selectedSentences}
+          isRandom={false}
           onClose={() => setMultiQuizVisible(false)}
         />
       )}
+
+      {isMultiQuizVisible && selectedSentences.length === 0 && currentSentences.length > 0 && (
+        <MultiQuizModal
+          sentences={currentSentences}
+          isRandom={true}
+          onClose={() => setMultiQuizVisible(false)}
+        />
+      )}
+
+      <style jsx global>{`
+        .btn-icon-circle {
+          width: 44px;
+          height: 44px;
+          border-radius: 50%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 1.25rem;
+          padding: 0;
+        }
+      `}</style>
     </div>
   );
 } 

@@ -1,94 +1,103 @@
 'use client';
 
 import { Sentence } from '@/lib/types';
-import AudioPlayer from './AudioPlayer';
-import Button from './ui/Button';
+import { useState } from 'react';
 
 interface SentenceListProps {
   sentences: Sentence[];
   selectedIds: string[];
-  onDelete: (id: string) => void;
-  onStartQuiz: (sentence: Sentence) => void;
   onToggleSelection: (sentence: Sentence) => void;
-  isPending: boolean;
 }
 
 // Helper function to get language display name
 const getLanguageDisplayName = (languageCode: string): string => {
   switch (languageCode) {
     case 'es-es':
-      return '🇪🇸 ES';
+      return '🇪🇸';
     case 'es':
-      return '🇲🇽 ES-LA';
+      return '🇲🇽';
     case 'en':
-      return '🇺🇸 EN';
+      return '🇺🇸';
     case 'fr-fr':
-      return '🇫🇷 FR';
+      return '🇫🇷';
     case 'fr':
-      return '🇨🇦 FR-CA';
+      return '🇨🇦';
     case 'de-de':
-      return '🇩🇪 DE';
+      return '🇩🇪';
     case 'de':
-      return '🇦🇹 DE-AT';
+      return '🇦🇹';
     case 'it-it':
-      return '🇮🇹 IT';
+      return '🇮🇹';
     case 'pt-pt':
-      return '🇵🇹 PT';
+      return '🇵🇹';
     case 'pt':
-      return '🇧🇷 PT-BR';
+      return '🇧🇷';
     case 'ja-jp':
-      return '🇯🇵 JA';
+      return '🇯🇵';
     case 'zh-cn':
-      return '🇨🇳 ZH';
+      return '🇨🇳';
     default:
-      return '🌐 ' + languageCode.toUpperCase();
+      return '🌐';
   }
 };
 
-export default function SentenceList({ sentences, selectedIds, onDelete, onStartQuiz, onToggleSelection, isPending }: SentenceListProps) {
+export default function SentenceList({ sentences, selectedIds, onToggleSelection }: SentenceListProps) {
+  const [hoveredId, setHoveredId] = useState<string | null>(null);
+
   if (sentences.length === 0) {
     return (
-        <div className="card">
-            <div className="card-body text-center">
-                <p className="card-text">No sentences yet. Add one to get started!</p>
-            </div>
+      <div className="card border-0 bg-light">
+        <div className="card-body text-center py-5">
+          <i className="bi bi-inbox display-4 text-muted mb-3"></i>
+          <h5 className="text-muted mb-2">No sentences yet</h5>
+          <p className="text-muted mb-0">Add one to get started!</p>
         </div>
+      </div>
     )
   }
   
   return (
-    <div className="list-group">
-      {sentences.map(sentence => (
-        <div key={sentence.id} className="list-group-item d-flex justify-content-between align-items-center">
-          <div className="form-check">
-            <input
-                className="form-check-input"
-                type="checkbox"
-                checked={selectedIds.includes(sentence.id)}
-                onChange={() => onToggleSelection(sentence)}
-                disabled={isPending}
-                id={`sentence-${sentence.id}`}
-            />
-            <label className="form-check-label" htmlFor={`sentence-${sentence.id}`}>
-              <div className="d-flex align-items-center gap-2 mb-1">
-                <span className="badge bg-secondary fs-6">
+    <div className="list-group list-group-flush">
+      {sentences.map(sentence => {
+        const isSelected = selectedIds.includes(sentence.id);
+        const isHovered = hoveredId === sentence.id;
+        
+        return (
+          <div 
+            key={sentence.id} 
+            className={`list-group-item border-bottom py-3 px-3 cursor-pointer transition-all ${
+              isSelected 
+                ? 'bg-primary bg-opacity-10 border-primary' 
+                : isHovered 
+                  ? 'bg-light' 
+                  : ''
+            }`}
+            onClick={() => onToggleSelection(sentence)}
+            onMouseEnter={() => setHoveredId(sentence.id)}
+            onMouseLeave={() => setHoveredId(null)}
+            style={{ cursor: 'pointer' }}
+          >
+            <div className="d-flex align-items-start w-100">
+              {/* Language flag - compact */}
+              <div className="d-flex align-items-center me-3 flex-shrink-0">
+                <span className="fs-5" title={sentence.languageCode}>
                   {getLanguageDisplayName(sentence.languageCode || 'es-es')}
                 </span>
               </div>
-              <strong>{sentence.spanishTranslation}</strong>
-              <br />
-              <small className="text-muted">{sentence.englishSentence}</small>
-            </label>
+              
+              {/* Main content - taking up most space */}
+              <div className="flex-grow-1" style={{ minWidth: 0 }}>
+                <p className="fw-bold mb-1 text-dark">
+                  {sentence.spanishTranslation}
+                </p>
+                <p className="text-muted small mb-0">
+                  {sentence.englishSentence}
+                </p>
+              </div>
+            </div>
           </div>
-          <div className="d-flex gap-2">
-            {sentence.audioPath && <AudioPlayer audioPath={sentence.audioPath} />}
-            <Button variant="secondary" size="sm" onClick={() => onStartQuiz(sentence)}>Quiz</Button>
-            <Button variant="danger" size="sm" onClick={() => onDelete(sentence.id)} disabled={isPending}>
-              Delete
-            </Button>
-          </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 } 

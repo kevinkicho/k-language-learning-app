@@ -6,8 +6,8 @@ export default function Modal({ isOpen, onClose, children }: ModalProps & { chil
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+    <div className="position-fixed top-0 start-0 w-100 h-100 bg-dark bg-opacity-50 d-flex align-items-center justify-content-center p-4" style={{ zIndex: 1050 }}>
+      <div className="bg-white rounded shadow-lg" style={{ maxWidth: '42rem', width: '100%', maxHeight: '90vh', overflowY: 'auto' }}>
         {children}
       </div>
     </div>

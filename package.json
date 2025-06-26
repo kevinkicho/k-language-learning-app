@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start",
+    "start": "next start -p 8080",
+    "export": "next export",
     "lint": "next lint",
     "type-check": "tsc --noEmit",
     "db:generate": "drizzle-kit generate",
@@ -14,11 +15,16 @@
     "db:studio": "drizzle-kit studio"
   },
   "dependencies": {
+    "@capacitor/android": "^7.4.0",
+    "@capacitor/cli": "^7.4.0",
+    "@capacitor/core": "^7.4.0",
+    "@google-cloud/storage": "^7.16.0",
     "@google-cloud/text-to-speech": "6.0.0",
     "@google-cloud/translate": "9.0.0",
     "@paralleldrive/cuid2": "^2.2.2",
     "better-sqlite3": "^12.0.0",
     "bootstrap": "^5.3.7",
+    "bootstrap-icons": "^1.13.1",
     "class-variance-authority": "^0.7.1",
     "drizzle-kit": "^0.31.1",
     "drizzle-orm": "^0.44.2",

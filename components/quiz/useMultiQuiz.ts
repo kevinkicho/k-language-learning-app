@@ -1,6 +1,5 @@
 import { Sentence } from "@/lib/types";
 import { QuizAction, QuizActionType } from './actions';
-import { chunkTextByLanguage } from '@/lib/utils';
 
 export interface Word {
   word: string;
@@ -53,15 +52,15 @@ export function quizReducer(state: QuizState, action: QuizAction): QuizState {
       const spanishSentence = action.sentence.spanishTranslation || action.sentence.englishSentence;
       const languageCode = action.sentence.languageCode || 'es-es';
       
-      // Determine if this is a Japanese quiz and which mode to use
+      // Determine if this is a Japanese or Chinese quiz and which mode to use
       let useRomajiMode = false;
-      if (languageCode === 'ja-jp') {
-        useRomajiMode = Math.random() > 0.5; // 50% chance for romaji mode
+      if (languageCode === 'ja-jp' || languageCode === 'zh-cn') {
+        useRomajiMode = Math.random() > 0.5; // 50% chance for romaji/pinyin mode
       }
       
       // For now, use simple word splitting as fallback
       // The async chunking will be handled in the component
-      const wordChunks = spanishSentence.split(/\s+/).filter(word => word.length > 0);
+      const wordChunks = spanishSentence.split(/\s+/).filter((word: string) => word.length > 0);
       
       const words = wordChunks.map((word: string, index: number) => ({
         id: `${index}-${word}`,
@@ -137,6 +136,8 @@ export function quizReducer(state: QuizState, action: QuizAction): QuizState {
       return { ...state, playingWord: action.payload };
     case QuizActionType.SET_FINAL_REVIEW:
       return { ...state, isFinalReview: true };
+    case QuizActionType.SET_SHUFFLED_WORDS:
+      return { ...state, shuffledWords: action.payload };
     default:
       return state;
   }

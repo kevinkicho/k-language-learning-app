@@ -147,56 +147,45 @@ export const safeLocalStorage = {
 };
 
 /**
- * Chunks text based on language for quiz word generation
+ * Chunks text for quiz word generation, returning both native and phonetic arrays for Chinese/Japanese.
  * @param text - The text to chunk
- * @param languageCode - The language code (e.g., 'ja-jp', 'es-es')
- * @param useRomajiMode - Whether to use romaji mode for Japanese
- * @returns Array of word chunks
+ * @param languageCode - The language code (e.g., 'ja-jp', 'zh-cn', 'es-es')
+ * @returns { nativeChunks: string[], phoneticChunks: string[] }
  */
-export const chunkTextByLanguage = async (text: string, languageCode: string, useRomajiMode: boolean = false): Promise<string[]> => {
-  if (!text) return [];
+export const chunkTextWithPhonetics = (text: string, languageCode: string): { nativeChunks: string[], phoneticChunks: string[] } => {
+  if (!text) return { nativeChunks: [], phoneticChunks: [] };
 
-  if (languageCode === 'ja-jp') {
-    if (useRomajiMode) {
-      // For romaji mode, extract content from parentheses or find any Latin characters
-      const romajiMatches = text.match(/\(([^)]+)\)/g);
-      let romajiText: string;
+  if (languageCode === 'ja-jp' || languageCode === 'zh-cn') {
+    // Extract phonetic (pinyin/romaji) from parentheses
+    const phoneticMatch = text.match(/\(([^)]+)\)/);
+    const phoneticChunks = phoneticMatch && phoneticMatch[1] ? phoneticMatch[1].trim().split(/\s+/) : [];
+    
+    // Remove phonetic from text, then split native by character (Chinese) or by API (Japanese)
+    const nativeText = text.replace(/\([^)]*\)/g, '').trim();
+    let nativeChunks: string[] = [];
 
-      if (romajiMatches && romajiMatches.length > 0) {
-        romajiText = romajiMatches.map(match => match.replace(/[()]/g, '')).join(' ').trim();
-      } else {
-        const romajiPattern = /[a-zA-Z\s]+/g;
-        const romajiParts = text.match(romajiPattern);
-        romajiText = romajiParts ? romajiParts.join(' ') : '';
-      }
-      return romajiText.split(/\s+/).filter(word => word.length > 0);
-
-    } else {
-      // For native script mode, use the server-side API for accurate chunking
-      try {
-        const response = await fetch('/api/ai/chunk-japanese', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ text }),
-        });
-        if (response.ok) {
-          const data = await response.json();
-          return data.chunks || [];
+    // Punctuation marks to attach to previous chunk
+    const punctuation = /[.,!?;:。！？、，．]/;
+    let buffer = '';
+    for (const char of nativeText) {
+      if (punctuation.test(char)) {
+        // Attach punctuation to previous chunk
+        if (nativeChunks.length > 0) {
+          nativeChunks[nativeChunks.length - 1] += char;
+        } else {
+          // If punctuation is at the start, treat as its own chunk
+          nativeChunks.push(char);
         }
-        console.error('Failed to chunk text via API:', response.status);
-      } catch (error) {
-        console.error('Error calling chunking API:', error);
+      } else if (char.trim() !== '') {
+        nativeChunks.push(char);
       }
-      // Fallback for API failure: return the cleaned Japanese text as a single chunk
-      return [text.replace(/\([^)]*\)/g, '').trim()];
     }
+    return { nativeChunks, phoneticChunks };
   }
-  
-  // For all other languages, split by spaces and common punctuation
-  return text
-    .split(/[\s.,!?;:]+/)
-    .filter(word => word.length > 0)
-    .map(word => word.trim());
+
+  // Other languages: split by spaces
+  const nativeChunks = text.split(/\s+/).filter(w => w.length > 0);
+  return { nativeChunks, phoneticChunks: [] };
 };
 
 /**
@@ -213,6 +202,12 @@ export const cleanTextForDisplay = (text: string, languageCode: string, useRomaj
       return romajiMatch[1].trim();
     }
   }
-  // For non-romaji mode or other languages, remove the romaji part
+  if (languageCode === 'zh-cn' && useRomajiMode) {
+    const pinyinMatch = text.match(/\(([^)]+)\)/);
+    if (pinyinMatch && pinyinMatch[1]) {
+      return pinyinMatch[1].trim();
+    }
+  }
+  // For non-romaji/pinyin mode or other languages, remove the parenthesis part
   return text.replace(/\s*\([^)]+\)\s*/g, ' ').trim();
 }; 

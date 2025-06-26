@@ -9,6 +9,8 @@ interface QuizResultProps {
   isLastSentence: boolean;
   onResetQuiz: () => void;
   onNextQuiz: () => void;
+  languageCode?: string;
+  useRomajiMode?: boolean;
 }
 
 const QuizResult: React.FC<QuizResultProps> = ({
@@ -18,6 +20,8 @@ const QuizResult: React.FC<QuizResultProps> = ({
   isLastSentence,
   onResetQuiz,
   onNextQuiz,
+  languageCode = 'es-es',
+  useRomajiMode = false,
 }) => {
   const resultMessage = isCorrect
     ? `Correct! Score: ${score}%`
@@ -28,7 +32,12 @@ const QuizResult: React.FC<QuizResultProps> = ({
   return (
     <div className={`alert ${alertClass} mt-3`}>
       <h4 className="alert-heading">{resultMessage}</h4>
-      <p>The correct sentence is: <strong>{spanishSentence}</strong></p>
+      <p>
+        The correct sentence is: <strong>
+          {spanishSentence}
+          {languageCode === 'zh-cn' && !useRomajiMode && '。'}
+        </strong>
+      </p>
       <hr />
       <div className="d-flex justify-content-end gap-2">
         <Button variant="secondary" onClick={onResetQuiz}>

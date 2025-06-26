@@ -6,15 +6,17 @@ interface LoadingSpinnerProps {
 }
 
 const spinnerSizes = {
-  sm: 'h-4 w-4',
-  md: 'h-8 w-8',
-  lg: 'h-12 w-12',
+  sm: 'spinner-border-sm',
+  md: 'spinner-border',
+  lg: 'spinner-border-lg',
 };
 
 export default function LoadingSpinner({ size = 'md', className = '' }: LoadingSpinnerProps) {
   return (
-    <div className={`flex justify-center items-center ${className}`}>
-      <div className={`animate-spin rounded-full border-b-2 border-primary-500 ${spinnerSizes[size]}`}></div>
+    <div className={`d-flex justify-content-center align-items-center ${className}`}>
+      <div className={`${spinnerSizes[size]} text-primary`} role="status">
+        <span className="visually-hidden">Loading...</span>
+      </div>
     </div>
   );
 } 

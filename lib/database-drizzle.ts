@@ -37,6 +37,7 @@ export class DatabaseDrizzle {
     const newSentence = {
       id,
       englishSentence,
+      nativeSentence: spanishTranslation || englishSentence,
       spanishTranslation: spanishTranslation || null,
       audioPath: null,
       quizGroup: quizGroup || null,
@@ -126,16 +127,29 @@ export class DatabaseDrizzle {
   }
 
   async saveWordAudio(word: string, language: string, audioPath: string): Promise<void> {
-    const id = nanoid();
     const now = new Date().toISOString();
-    
-    await db.insert(wordAudioCache).values({
-      id,
-      word,
-      language,
-      audioPath,
-      createdAt: now,
-    });
+    // Check if entry exists
+    const existing = await db.select().from(wordAudioCache).where(and(
+      eq(wordAudioCache.word, word),
+      eq(wordAudioCache.language, language)
+    ));
+    if (existing.length > 0) {
+      await db.update(wordAudioCache)
+        .set({ audioPath, createdAt: now })
+        .where(and(
+          eq(wordAudioCache.word, word),
+          eq(wordAudioCache.language, language)
+        ));
+    } else {
+      const id = nanoid();
+      await db.insert(wordAudioCache).values({
+        id,
+        word,
+        language,
+        audioPath,
+        createdAt: now,
+      });
+    }
   }
 
   async deleteWordAudio(word: string, language: string): Promise<void> {

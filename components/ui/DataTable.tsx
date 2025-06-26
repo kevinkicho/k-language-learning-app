@@ -18,34 +18,34 @@ export default function DataTable<T>({
 }: DataTableProps<T>) {
   if (data.length === 0) {
     return (
-      <div className="text-center py-8">
-        <p className="text-gray-500">{emptyMessage}</p>
+      <div className="text-center py-5">
+        <p className="text-muted">{emptyMessage}</p>
       </div>
     );
   }
 
   return (
-    <div className={`overflow-x-auto ${className}`}>
-      <table className="min-w-full divide-y divide-gray-200">
-        <thead className="bg-gray-50">
+    <div className={`overflow-auto ${className}`}>
+      <table className="table table-striped table-hover">
+        <thead className="table-light">
           <tr>
             {columns.map((column) => (
               <th
                 key={String(column.key)}
-                className={`px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider ${column.className || ''}`}
+                className={`text-uppercase small fw-medium text-muted ${column.className || ''}`}
               >
                 {column.label}
               </th>
             ))}
           </tr>
         </thead>
-        <tbody className="bg-white divide-y divide-gray-200">
+        <tbody>
           {data.map((item, index) => (
             <tr key={index}>
               {columns.map((column) => (
                 <td
                   key={String(column.key)}
-                  className={`px-6 py-4 text-sm ${column.className || ''}`}
+                  className={`${column.className || ''}`}
                 >
                   {column.render 
                     ? column.render(item[column.key], item)

@@ -212,6 +212,13 @@ export class CachedAPI {
     
     // Invalidate sentences cache
     removeCache('sentences');
+    
+    // Also clear any quiz-related caches for this sentence
+    removeCache(`quiz_attempts_${id}`);
+    
+    // Clear any audio caches for this sentence
+    const audioKeys = Array.from(audioCache.keys()).filter(key => key.includes(id));
+    audioKeys.forEach(key => audioCache.delete(key));
   }
   
   // Word audio

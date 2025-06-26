@@ -1,13 +1,83 @@
 import { TextToSpeechClient } from '@google-cloud/text-to-speech';
+import { Translate } from '@google-cloud/translate/build/src/v2';
+import { Storage } from '@google-cloud/storage';
 import fs from 'fs/promises';
+import path from 'path';
+import * as wanakana from 'wanakana';
 
 const GOOGLE_PROJECT_ID = process.env.GOOGLE_CLOUD_PROJECT_ID;
-const GOOGLE_KEY_FILENAME = process.env.GOOGLE_CLOUD_KEY_FILENAME;
+const AUDIO_DIR = path.join(process.cwd(), 'public', 'audio');
+
+// Initialize Google Cloud Storage with Application Default Credentials
+const storage = new Storage({
+  projectId: GOOGLE_PROJECT_ID,
+});
+
+const BUCKET_NAME = `${GOOGLE_PROJECT_ID}-audio-files`;
+const BUCKET = storage.bucket(BUCKET_NAME);
 
 const textToSpeechClient = new TextToSpeechClient({
   projectId: GOOGLE_PROJECT_ID,
-  keyFilename: GOOGLE_KEY_FILENAME,
 });
+
+const translate = new Translate({
+  projectId: GOOGLE_PROJECT_ID,
+});
+
+// Ensure audio directory exists (for local development)
+async function ensureAudioDirectory(): Promise<void> {
+  try {
+    await fs.access(AUDIO_DIR);
+  } catch {
+    await fs.mkdir(AUDIO_DIR, { recursive: true });
+  }
+}
+
+// Upload audio file to Google Cloud Storage
+async function uploadAudioToCloudStorage(audioBuffer: Buffer, fileName: string): Promise<string> {
+  try {
+    // Ensure bucket exists
+    const [exists] = await BUCKET.exists();
+    if (!exists) {
+      console.log(`[CLOUD STORAGE] Creating bucket: ${BUCKET_NAME}`);
+      await BUCKET.create();
+      // Make bucket public for audio file access
+      await BUCKET.makePublic();
+    }
+
+    // Upload file
+    const file = BUCKET.file(fileName);
+    await file.save(audioBuffer, {
+      metadata: {
+        contentType: 'audio/mpeg',
+        cacheControl: 'public, max-age=31536000', // Cache for 1 year
+      },
+    });
+
+    // Make file publicly readable
+    await file.makePublic();
+
+    // Return public URL
+    const publicUrl = `https://storage.googleapis.com/${BUCKET_NAME}/${fileName}`;
+    console.log(`[CLOUD STORAGE] Audio uploaded: ${publicUrl}`);
+    return publicUrl;
+  } catch (error) {
+    console.error('[CLOUD STORAGE] Upload error:', error);
+    throw new Error(`Failed to upload audio to Cloud Storage: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+// Check if audio file exists in Cloud Storage
+async function audioExistsInCloudStorage(fileName: string): Promise<boolean> {
+  try {
+    const file = BUCKET.file(fileName);
+    const [exists] = await file.exists();
+    return exists;
+  } catch (error) {
+    console.error('[CLOUD STORAGE] Check existence error:', error);
+    return false;
+  }
+}
 
 // Helper function to get the correct voice for each language
 function getVoiceForLanguage(languageCode: string): { languageCode: string; name: string } {
@@ -37,39 +107,118 @@ function getVoiceForLanguage(languageCode: string): { languageCode: string; name
     case 'ja-jp':
       return { languageCode: 'ja-JP', name: 'ja-JP-Wavenet-A' };
     case 'zh-cn':
-      return { languageCode: 'zh-CN', name: 'zh-CN-Wavenet-A' };
+      return { languageCode: 'cmn-CN', name: 'cmn-CN-Standard-A' };
     default:
       console.log(`[VOICE MAPPING] Unknown language code: "${languageCode}", falling back to Spanish`);
       return { languageCode: 'es-ES', name: 'es-ES-Neural2-A' };
   }
 }
 
+// Get fallback voices for Chinese if the primary voice fails
+function getChineseFallbackVoices(): Array<{ languageCode: string; name: string }> {
+  return [
+    { languageCode: 'cmn-CN', name: 'cmn-CN-Standard-A' },
+    { languageCode: 'cmn-CN', name: 'cmn-CN-Standard-B' },
+    { languageCode: 'cmn-CN', name: 'cmn-CN-Wavenet-A' },
+    { languageCode: 'cmn-CN', name: 'cmn-CN-Wavenet-B' },
+    { languageCode: 'cmn-CN', name: 'cmn-CN-Chirp3-HD-Achernar' },
+    { languageCode: 'cmn-CN', name: 'cmn-CN-Chirp3-HD-Aoede' },
+  ];
+}
+
+// Function to list available voices for debugging
+export async function listAvailableVoices(languageCode: string = 'zh-CN'): Promise<void> {
+  try {
+    console.log(`[VOICE DEBUG] Listing available voices for language: ${languageCode}`);
+    const [voices] = await textToSpeechClient.listVoices({ languageCode });
+    
+    if (voices.voices) {
+      console.log(`[VOICE DEBUG] Found ${voices.voices.length} voices for ${languageCode}:`);
+      voices.voices.forEach(voice => {
+        console.log(`[VOICE DEBUG] - ${voice.name} (${voice.languageCodes?.join(', ')})`);
+      });
+    } else {
+      console.log(`[VOICE DEBUG] No voices found for ${languageCode}`);
+    }
+  } catch (error) {
+    console.error('[VOICE DEBUG] Error listing voices:', error);
+  }
+}
+
 // Standalone function for generating audio (returns Buffer)
 export async function generateAudio(text: string, language: string): Promise<Buffer> {
   console.log(`[generateAudio] Starting for text: "${text}", lang: "${language}"`);
+  console.log(`[generateAudio] Project ID: ${GOOGLE_PROJECT_ID}`);
+  console.log(`[generateAudio] TTS Client initialized: ${!!textToSpeechClient}`);
   
-  if (!GOOGLE_PROJECT_ID || !GOOGLE_KEY_FILENAME) {
-    console.error('[generateAudio] Missing GOOGLE_PROJECT_ID or GOOGLE_KEY_FILENAME');
-    throw new Error('Google Cloud credentials (PROJECT_ID and KEY_FILENAME) are not set in environment variables.');
+  if (!GOOGLE_PROJECT_ID) {
+    console.error('[generateAudio] Missing GOOGLE_PROJECT_ID');
+    throw new Error('Google Cloud PROJECT_ID is not set in environment variables.');
   }
 
-  try {
-    await fs.access(GOOGLE_KEY_FILENAME);
-  } catch (err) {
-    console.error(`[generateAudio] FAILED to access key file at: ${GOOGLE_KEY_FILENAME}`);
-    throw new Error(`Could not access Google Cloud key file. Please check the path.`);
-  }
+  const languageCode = language || 'es-es';
+  
+  // Special handling for Chinese - try multiple voices
+  if (languageCode === 'zh-cn') {
+    // First, let's see what voices are actually available
+    await listAvailableVoices('zh-CN');
+    
+    const fallbackVoices = getChineseFallbackVoices();
+    let lastError: Error | null = null;
+    
+    for (const voice of fallbackVoices) {
+      try {
+        console.log(`[generateAudio] Trying Chinese voice: ${voice.name}`);
+        
+        const request = {
+          input: { text },
+          voice: {
+            languageCode: voice.languageCode,
+            name: voice.name,
+          },
+          audioConfig: {
+            audioEncoding: 'MP3' as const,
+            speakingRate: 0.9,
+            pitch: 0,
+          },
+        };
 
+        console.log(`[generateAudio] Sending TTS request:`, JSON.stringify(request, null, 2));
+
+        const [response] = await textToSpeechClient.synthesizeSpeech(request);
+        
+        if (!response.audioContent) {
+          throw new Error('No audio content received from Google TTS');
+        }
+
+        console.log(`[generateAudio] Successfully received ${response.audioContent.length} bytes of audio data using voice: ${voice.name}`);
+        return Buffer.from(response.audioContent);
+      } catch (error) {
+        console.log(`[generateAudio] Voice ${voice.name} failed:`, error instanceof Error ? error.message : 'Unknown error');
+        console.log(`[generateAudio] Voice ${voice.name} error details:`, {
+          name: error instanceof Error ? error.name : 'Unknown',
+          stack: error instanceof Error ? error.stack : undefined
+        });
+        lastError = error instanceof Error ? error : new Error('Unknown error');
+        continue; // Try next voice
+      }
+    }
+    
+    // If all voices failed
+    console.error('[generateAudio] All Chinese voices failed');
+    throw new Error(`All Chinese voices failed. Last error: ${lastError?.message}`);
+  }
+  
+  // For other languages, use the standard approach
   try {
-    const languageCode = language || 'es-es';
     const voice = getVoiceForLanguage(languageCode);
+    console.log(`[generateAudio] Using voice: ${voice.languageCode}/${voice.name}`);
     
     const request = {
       input: { text },
       voice: {
         languageCode: voice.languageCode,
         name: voice.name,
-        ssmlGender: 'FEMALE' as const,
       },
       audioConfig: {
         audioEncoding: 'MP3' as const,
@@ -77,6 +226,8 @@ export async function generateAudio(text: string, language: string): Promise<Buf
         pitch: 0,
       },
     };
+
+    console.log(`[generateAudio] Sending TTS request:`, JSON.stringify(request, null, 2));
 
     const [response] = await textToSpeechClient.synthesizeSpeech(request);
     
@@ -88,6 +239,11 @@ export async function generateAudio(text: string, language: string): Promise<Buf
     return Buffer.from(response.audioContent);
   } catch (error) {
     console.error('[generateAudio] Full error from Google TTS Client:', error);
+    console.error('[generateAudio] Error details:', {
+      name: error instanceof Error ? error.name : 'Unknown',
+      message: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined
+    });
     if (error instanceof Error) {
         throw new Error(`Google TTS Error: ${error.message}`);
     }
@@ -98,112 +254,186 @@ export async function generateAudio(text: string, language: string): Promise<Buf
 export const googleServices = {
   // Translate text to Spanish
   async translateToSpanish(text: string): Promise<string> {
-    if (!GOOGLE_PROJECT_ID || !GOOGLE_KEY_FILENAME) {
-      throw new Error('Google Cloud credentials (PROJECT_ID and KEY_FILENAME) are not set in environment variables.');
+    if (!GOOGLE_PROJECT_ID) {
+      throw new Error('Google Cloud PROJECT_ID is not set in environment variables.');
     }
     try {
       const [translation] = await translate.translate(text, 'es');
       return translation;
     } catch (error) {
       console.error('Translation error:', error);
-      if (error instanceof Error) {
-        throw new Error(`Translation failed: ${error.message}`);
-      }
-      throw new Error('Translation failed');
+      throw new Error(`Translation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   },
 
-  // Translate Japanese text to English for word chunking
+  // Translate Japanese text to English
   async translateJapaneseToEnglish(text: string): Promise<string> {
-    if (!GOOGLE_PROJECT_ID || !GOOGLE_KEY_FILENAME) {
-      throw new Error('Google Cloud credentials (PROJECT_ID and KEY_FILENAME) are not set in environment variables.');
+    if (!GOOGLE_PROJECT_ID) {
+      throw new Error('Google Cloud PROJECT_ID is not set in environment variables.');
     }
     try {
-      const [translation] = await translate.translate(text, 'en');
+      const [translation] = await translate.translate(text, { from: 'ja', to: 'en' });
       return translation;
     } catch (error) {
-      console.error('Japanese to English translation error:', error);
-      if (error instanceof Error) {
-        throw new Error(`Translation failed: ${error.message}`);
-      }
-      throw new Error('Translation failed');
+      console.error('Japanese translation error:', error);
+      throw new Error(`Japanese translation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   },
 
-  // Intelligently chunk Japanese text using translation API
+  // Chunk Japanese text into smaller pieces
   async chunkJapaneseText(japaneseText: string): Promise<string[]> {
     try {
-      // Clean the Japanese text (remove romaji in parentheses)
-      const cleanJapaneseText = japaneseText.replace(/\([^)]*\)/g, '').trim();
+      // Remove romaji in parentheses and clean the text
+      const cleanText = japaneseText.replace(/\([^)]*\)/g, '').trim();
       
-      // Translate to English to get word boundaries
-      const englishTranslation = await this.translateJapaneseToEnglish(cleanJapaneseText);
+      // Split by common Japanese punctuation and particles
+      const chunks = cleanText
+        .split(/[。、！？\s]+/)
+        .filter(chunk => chunk.length > 0)
+        .map(chunk => chunk.trim())
+        .filter(chunk => chunk.length > 0);
       
-      // Split English translation by spaces to get word boundaries
-      const englishWords = englishTranslation.split(/\s+/).filter(word => word.length > 0);
+      // If chunks are too long, split them further
+      const maxChunkLength = 10; // Maximum characters per chunk
+      const finalChunks: string[] = [];
       
-      // Calculate proportional distribution
-      const totalEnglishChars = englishWords.join('').replace(/[^a-zA-Z]/g, '').length;
-      const totalJapaneseChars = cleanJapaneseText.replace(/[。、！？：；]/g, '').length;
-      
-      // Create chunks based on proportional character distribution
-      const chunks: string[] = [];
-      let currentChunk = '';
-      let englishWordIndex = 0;
-      let japaneseCharIndex = 0;
-      
-      for (let i = 0; i < cleanJapaneseText.length; i++) {
-        const char = cleanJapaneseText[i];
-        
-        // Add character to current chunk
-        currentChunk += char;
-        
-        // Skip punctuation for character counting
-        if (!/[。、！？：；]/.test(char)) {
-          japaneseCharIndex++;
-        }
-        
-        // Check if we should end the current chunk
-        if (englishWordIndex < englishWords.length) {
-          const currentEnglishWord = englishWords[englishWordIndex];
-          const englishWordChars = currentEnglishWord.replace(/[^a-zA-Z]/g, '').length;
-          
-          // Calculate how many Japanese characters should correspond to this English word
-          const expectedJapaneseChars = Math.round((englishWordChars / totalEnglishChars) * totalJapaneseChars);
-          
-          // End chunk when we've reached the expected number of Japanese characters
-          if (japaneseCharIndex >= expectedJapaneseChars) {
-            chunks.push(currentChunk);
-            currentChunk = '';
-            englishWordIndex++;
-            japaneseCharIndex = 0;
-          }
+      for (const chunk of chunks) {
+        if (chunk.length <= maxChunkLength) {
+          finalChunks.push(chunk);
+        } else {
+          // Split long chunks by character type boundaries
+          const subChunks = this.splitJapaneseIntoChunks(chunk, Math.ceil(chunk.length / maxChunkLength));
+          finalChunks.push(...subChunks);
         }
       }
       
-      // Add any remaining chunk
-      if (currentChunk) {
-        chunks.push(currentChunk);
-      }
-      
-      return chunks.filter(chunk => chunk.length > 0);
+      console.log(`[CHUNK] Split "${japaneseText}" into ${finalChunks.length} chunks:`, finalChunks);
+      return finalChunks;
     } catch (error) {
-      console.error('Japanese text chunking error:', error);
-      // Fallback: return the whole text as one chunk
-      return [japaneseText.replace(/\([^)]*\)/g, '').trim()];
+      console.error('Japanese chunking error:', error);
+      // Return the original text as a single chunk if chunking fails
+      return [japaneseText];
     }
   },
 
-  // Generate audio for text
+  // Generate audio and save to Cloud Storage
   async generateAudio(text: string, englishText: string, languageCode: string = 'es-es'): Promise<string> {
-    if (!GOOGLE_PROJECT_ID || !GOOGLE_KEY_FILENAME) {
-      throw new Error('Google Cloud credentials (PROJECT_ID and KEY_FILENAME) are not set in environment variables.');
+    if (!GOOGLE_PROJECT_ID) {
+      throw new Error('Google Cloud PROJECT_ID is not set in environment variables.');
     }
+
     try {
-      await ensureAudioDirectory();
+      // Create standardized filename: sanitized English text + language code
+      const sanitizedEnglish = englishText
+        .toLowerCase()
+        .replace(/[^a-z0-9\s]/g, '') // Remove special characters
+        .replace(/\s+/g, '_') // Replace spaces with underscores
+        .substring(0, 50); // Limit length
       
-      const voice = getVoiceForLanguage(languageCode);
+      const audioFileName = `${sanitizedEnglish}_${languageCode}.mp3`;
+      
+      // Check if audio already exists in Cloud Storage
+      const exists = await audioExistsInCloudStorage(audioFileName);
+      if (exists) {
+        const publicUrl = `https://storage.googleapis.com/${BUCKET_NAME}/${audioFileName}`;
+        console.log(`[TTS REQUEST] Audio already exists in Cloud Storage: ${publicUrl}`);
+        return publicUrl;
+      }
+
       console.log(`[TTS REQUEST] Generating audio for text: "${text}"`);
+      console.log(`[TTS REQUEST] Language code: "${languageCode}"`);
+      
+      // Special handling for Chinese - try multiple voices
+      if (languageCode === 'zh-cn') {
+        // First, let's see what voices are actually available
+        await listAvailableVoices('zh-CN');
+        
+        const fallbackVoices = getChineseFallbackVoices();
+        let lastError: Error | null = null;
+        
+        for (const voice of fallbackVoices) {
+          try {
+            console.log(`[TTS REQUEST] Trying Chinese voice: ${voice.name}`);
+            
+            const request = {
+              input: { text },
+              voice: {
+                languageCode: voice.languageCode,
+                name: voice.name,
+              },
+              audioConfig: {
+                audioEncoding: 'MP3' as const,
+                speakingRate: 0.8,
+                pitch: 0,
+              },
+            };
+
+            console.log(`[TTS REQUEST] Sending request to Google Cloud TTS:`, JSON.stringify(request, null, 2));
+
+            const [response] = await textToSpeechClient.synthesizeSpeech(request);
+            
+            if (!response.audioContent) {
+              throw new Error('No audio content received');
+            }
+
+            // Upload to Cloud Storage
+            const audioBuffer = Buffer.from(response.audioContent);
+            const publicUrl = await uploadAudioToCloudStorage(audioBuffer, audioFileName);
+            
+            console.log(`[TTS REQUEST] Successfully generated audio using voice ${voice.name}: ${publicUrl}`);
+            
+            return publicUrl;
+          } catch (error) {
+            console.log(`[TTS REQUEST] Voice ${voice.name} failed:`, error instanceof Error ? error.message : 'Unknown error');
+            lastError = error instanceof Error ? error : new Error('Unknown error');
+            continue; // Try next voice
+          }
+        }
+        
+        // If all voices failed, try without specifying a specific voice name
+        try {
+          console.log(`[TTS REQUEST] Trying Chinese with language code only (no specific voice)`);
+          
+          const request = {
+            input: { text },
+            voice: {
+              languageCode: 'cmn-CN',
+              // No name specified - let Google choose
+            },
+            audioConfig: {
+              audioEncoding: 'MP3' as const,
+              speakingRate: 0.8,
+              pitch: 0,
+            },
+          };
+
+          console.log(`[TTS REQUEST] Sending request to Google Cloud TTS:`, JSON.stringify(request, null, 2));
+
+          const [response] = await textToSpeechClient.synthesizeSpeech(request);
+          
+          if (!response.audioContent) {
+            throw new Error('No audio content received');
+          }
+
+          // Upload to Cloud Storage
+          const audioBuffer = Buffer.from(response.audioContent);
+          const publicUrl = await uploadAudioToCloudStorage(audioBuffer, audioFileName);
+          
+          console.log(`[TTS REQUEST] Successfully generated audio using default voice: ${publicUrl}`);
+          
+          return publicUrl;
+        } catch (error) {
+          console.log(`[TTS REQUEST] Default voice also failed:`, error instanceof Error ? error.message : 'Unknown error');
+          lastError = error instanceof Error ? error : new Error('Unknown error');
+        }
+        
+        // If all voices failed
+        console.error('[TTS REQUEST] All Chinese voices failed');
+        throw new Error(`All Chinese voices failed. Last error: ${lastError?.message}`);
+      }
+      
+      // For other languages, use the standard approach
+      const voice = getVoiceForLanguage(languageCode);
       console.log(`[TTS REQUEST] Language code: "${languageCode}" -> Voice: ${voice.languageCode}/${voice.name}`);
       
       const request = {
@@ -211,7 +441,6 @@ export const googleServices = {
         voice: {
           languageCode: voice.languageCode,
           name: voice.name,
-          ssmlGender: 'FEMALE' as const,
         },
         audioConfig: {
           audioEncoding: 'MP3' as const,
@@ -228,20 +457,13 @@ export const googleServices = {
         throw new Error('No audio content received');
       }
 
-      // Create standardized filename: sanitized English text + language code
-      const sanitizedEnglish = englishText
-        .toLowerCase()
-        .replace(/[^a-z0-9\s]/g, '') // Remove special characters
-        .replace(/\s+/g, '_') // Replace spaces with underscores
-        .substring(0, 50); // Limit length
+      // Upload to Cloud Storage
+      const audioBuffer = Buffer.from(response.audioContent);
+      const publicUrl = await uploadAudioToCloudStorage(audioBuffer, audioFileName);
       
-      const audioFileName = `${sanitizedEnglish}_${languageCode}.mp3`;
-      const audioPath = path.join(AUDIO_DIR, audioFileName);
-      await fs.writeFile(audioPath, response.audioContent, 'binary');
+      console.log(`[TTS REQUEST] Successfully generated audio: ${publicUrl}`);
       
-      console.log(`[TTS REQUEST] Successfully generated audio: ${audioFileName}`);
-      
-      return `/audio/${audioFileName}`;
+      return publicUrl;
     } catch (error) {
       console.error('[TTS REQUEST] Audio generation error:', error);
       if (error instanceof Error) {
@@ -291,74 +513,61 @@ export const googleServices = {
         return cleanJapaneseText;
       }
       
-      // Split Japanese text into the same number of chunks as romaji words
+      // Split Japanese text into chunks (roughly one per romaji word)
       const japaneseChunks = this.splitJapaneseIntoChunks(cleanJapaneseText, romajiWords.length);
       
-      if (currentWordIndex < japaneseChunks.length) {
+      // Return the chunk corresponding to the current word
+      if (japaneseChunks[currentWordIndex]) {
         return japaneseChunks[currentWordIndex];
       }
       
       return cleanJapaneseText;
     } catch (error) {
-      console.error('Error in translateRomajiWordToJapaneseChunk:', error);
-      return japaneseText.replace(/\([^)]*\)/g, '').trim();
+      console.error('Romaji translation error:', error);
+      return japaneseText;
     }
   },
 
-  // Split Japanese text into N contiguous chunks, favoring longer chunks at the start
+  // Split Japanese text into chunks
   splitJapaneseIntoChunks(text: string, numChunks: number): string[] {
     if (numChunks <= 1) {
       return [text];
     }
-    const chars = text.split('');
-    const total = chars.length;
-    const baseSize = Math.floor(total / numChunks);
-    let remainder = total % numChunks;
-    let idx = 0;
+    
     const chunks: string[] = [];
-    for (let i = 0; i < numChunks; i++) {
-      let size = baseSize + (remainder > 0 ? 1 : 0);
-      remainder--;
-      const chunk = chars.slice(idx, idx + size).join('');
-      chunks.push(chunk);
-      idx += size;
+    const chunkSize = Math.ceil(text.length / numChunks);
+    
+    for (let i = 0; i < text.length; i += chunkSize) {
+      chunks.push(text.slice(i, i + chunkSize));
     }
-    return chunks.filter(chunk => chunk.length > 0);
+    
+    return chunks;
   },
 
-  // Helper function to determine character type
+  // Get character type for Japanese text analysis
   getCharacterType(char: string): 'hiragana' | 'katakana' | 'kanji' | 'romaji' | 'other' {
-    if (/[\u3040-\u309F]/.test(char)) return 'hiragana';
-    if (/[\u30A0-\u30FF]/.test(char)) return 'katakana';
-    if (/[\u4E00-\u9FAF]/.test(char)) return 'kanji';
+    if (wanakana.isHiragana(char)) return 'hiragana';
+    if (wanakana.isKatakana(char)) return 'katakana';
+    if (wanakana.isKanji(char)) return 'kanji';
     if (/[a-zA-Z]/.test(char)) return 'romaji';
     return 'other';
   },
 
-  // Convert each romaji word to a Japanese chunk using wanakana
+  // Convert romaji words to kana chunks
   async convertRomajiWordsToKanaChunks(fullRomaji: string): Promise<string[]> {
-    const romajiWords = fullRomaji.split(/\s+/).filter(w => w.length > 0);
-    const chunks: string[] = [];
-
-    for (const romajiWord of romajiWords) {
-      // Pre-process the romaji word to remove any characters that might confuse the conversion
-      const cleanRomaji = romajiWord.replace(/[.,!?;:]/g, '');
+    try {
+      const words = fullRomaji.split(/\s+/).filter(w => w.length > 0);
+      const chunks: string[] = [];
       
-      // Convert the clean romaji directly to kana.
-      const kana = wanakana.toKana(cleanRomaji);
-      chunks.push(kana);
+      for (const word of words) {
+        const kana = wanakana.toHiragana(word);
+        chunks.push(kana);
+      }
+      
+      return chunks;
+    } catch (error) {
+      console.error('Romaji to kana conversion error:', error);
+      return [fullRomaji];
     }
-    
-    // As a final step, let's combine the last two chunks if the last one is just punctuation.
-    // This handles cases like "ka?" -> "か?" -> ["か", "?"] -> "か?"
-    if (chunks.length > 1) {
-        const lastChunk = chunks[chunks.length - 1];
-        if (['。', '、', '！', '？'].includes(lastChunk)) {
-            const secondLastChunk = chunks[chunks.length - 2];
-            chunks.splice(chunks.length - 2, 2, secondLastChunk + lastChunk);
-        }
-    }
-
-    return chunks;
   },
 }; 

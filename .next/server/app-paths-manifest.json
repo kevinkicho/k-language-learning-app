@@ -1,3 +1,16 @@
 {
+  "/_not-found/page": "app/_not-found/page.js",
+  "/api/audio/[id]/route": "app/api/audio/[id]/route.js",
+  "/api/ai/quiz/route": "app/api/ai/quiz/route.js",
+  "/api/audio/word/route": "app/api/audio/word/route.js",
+  "/api/ai/chunk-japanese/route": "app/api/ai/chunk-japanese/route.js",
+  "/api/database/regenerate-sentence-audio/route": "app/api/database/regenerate-sentence-audio/route.js",
+  "/api/database/route": "app/api/database/route.js",
+  "/api/debug/env/route": "app/api/debug/env/route.js",
+  "/api/sentences/route": "app/api/sentences/route.js",
+  "/api/quiz/route": "app/api/quiz/route.js",
+  "/api/sentences/[id]/route": "app/api/sentences/[id]/route.js",
+  "/api/test-env/route": "app/api/test-env/route.js",
+  "/database/page": "app/database/page.js",
   "/page": "app/page.js"
 }
